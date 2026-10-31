@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maquette Mont Blanc – Contrôle</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stars" class="fx"></div>
+<div id="clouds" class="fx"><i></i><i></i><i></i></div>
+<div id="flash" class="fx"></div>
+
+<main>
+<h1>Maquette Mont Blanc <small>Poste de contrôle</small></h1>
+
+<!-- SECTION 1 : soleil, temps, météo -->
+<section id="s1" class="card">
+  <svg id="arc" viewBox="0 0 300 172" aria-label="Roue du soleil">
+    <defs><clipPath id="up"><rect x="-40" y="-60" width="380" height="202"/></clipPath></defs>
+    <path class="arc" d="M30 140 A120 120 0 0 1 270 140"/>
+    <line class="hor" x1="10" y1="140" x2="290" y2="140"/>
+    <g id="hours" class="hrs"></g>
+    <g id="ctl">
+      <path class="hit" d="M13 140 A137 137 0 0 1 287 140Z"/>
+      <g clip-path="url(#up)">
+        <g id="wheel">
+          <g id="tks" class="wt"></g>
+          <line class="rt" x1="150" y1="52" x2="150" y2="28"/>
+          <line class="rt" x1="150" y1="52" x2="150" y2="28" transform="rotate(180 150 140)"/>
+        </g>
+        <g id="sun"><circle class="halo" r="18"/><circle r="10"/><circle class="tz" r="26"/></g>
+      </g>
+    </g>
+    <g class="sunt"><text id="rise" x="8" y="162"></text><text id="set" x="292" y="162" text-anchor="end"></text></g>
+  </svg>
+  <p class="read">Altitude <b id="alt">–</b> · Course du soleil <b id="pct">–</b></p>
+
+  <div class="two">
+    <label>Date maquette<input type="date" id="d"></label>
+    <label>Heure maquette<input type="time" id="t" step="1"></label>
+  </div>
+
+  <div class="speed">
+    <div class="head"><label for="spd">Vitesse du temps</label><output id="spdL"></output></div>
+    <input type="range" id="spd" min="0" max="8" step="1" value="1">
+  </div>
+
+  <div class="chips">
+    <button data-w="sun" class="on">☀️ Beau temps</button>
+    <button data-w="cloud">☁️ Nuageux</button>
+    <button data-w="storm">⛈️ Orageux</button>
+  </div>
+</section>
+
+<!-- SECTION 2 : réglages -->
+<div id="s2">
+  <details open><summary>Ciel</summary>
+    <label class="row tg">Couleur automatique<input type="checkbox" data-k="auto" checked></label>
+    <label class="row">Rouge<input type="range" min="0" max="255" value="60" data-k="sr"><output></output></label>
+    <label class="row">Vert<input type="range" min="0" max="255" value="140" data-k="sg"><output></output></label>
+    <label class="row">Bleu<input type="range" min="0" max="255" value="230" data-k="sb"><output></output></label>
+    <label class="row">Orage<input type="range" min="0" max="100" value="0" data-k="storm" data-u=" %"><output></output></label>
+    <label class="row">Nuages<input type="range" min="0" max="100" value="10" data-k="clouds" data-u=" %"><output></output></label>
+    <label class="row tg">Soleil manuel<input type="checkbox" data-k="sun_man"></label>
+    <label class="row">Position soleil<input type="range" min="0" max="100" value="50" data-k="sun_pos" data-u=" %"><output></output></label>
+    <h3>Luminosité</h3>
+    <label class="row">Soleil<input type="range" min="0" max="100" value="100" data-k="b_sun" data-u=" %"><output></output></label>
+    <label class="row">Nuages<input type="range" min="0" max="100" value="100" data-k="b_cloud" data-u=" %"><output></output></label>
+    <label class="row">Étoiles<input type="range" min="0" max="100" value="100" data-k="b_stars" data-u=" %"><output></output></label>
+    <label class="row">Éclairs<input type="range" min="0" max="100" value="100" data-k="b_light" data-u=" %"><output></output></label>
+  </details>
+
+  <details open><summary>Train &amp; téléphérique</summary>
+    <h3>Train</h3>
+    <label class="row">Vitesse<input type="range" min="0" max="100" value="40" data-k="tr_v" data-u=" km/h"><output></output></label>
+    <label class="row">Fréquence<input type="range" min="0" max="12" value="4" data-k="tr_f" data-u=" /h"><output></output></label>
+    <h3>Téléphérique</h3>
+    <label class="row">Vitesse<input type="range" min="0" max="12" value="6" data-k="te_v" data-u=" m/s"><output></output></label>
+    <label class="row">Fréquence<input type="range" min="0" max="20" value="6" data-k="te_f" data-u=" /h"><output></output></label>
+  </details>
+
+  <details open><summary>Lumières au sol</summary>
+    <label class="row tg">Voitures<input type="checkbox" data-k="l_cars" checked></label>
+    <label class="row tg">Maisons<input type="checkbox" data-k="l_houses" checked></label>
+  </details>
+
+  <details open><summary>Sons</summary>
+    <label class="row">Vent<input type="range" min="0" max="100" value="40" data-k="v_wind" data-u=" %"><output></output></label>
+    <label class="row">Oiseaux<input type="range" min="0" max="100" value="30" data-k="v_birds" data-u=" %"><output></output></label>
+    <label class="row">Voitures<input type="range" min="0" max="100" value="20" data-k="v_cars" data-u=" %"><output></output></label>
+    <label class="row">Train<input type="range" min="0" max="100" value="50" data-k="v_train" data-u=" %"><output></output></label>
+  </details>
+</div>
+
+<footer>Mode simulation · aucune connexion à la maquette</footer>
+</main>
+
+<script>
+const LAT=45.8326, LON=6.8652, RAD=Math.PI/180;
+const $=s=>document.querySelector(s);
+const S={};                                   // état de tous les réglages
+const STEPS=[0,1,10,60,300,1440,3600,7200,14400];
+const LABELS=['Pause','Temps réel','×10','×60','×300','×1 440','×3 600','×7 200','24 h = 6 s'];
+let speed=1, virt=Date.now()-new Date().getTimezoneOffset()*60000; // heure maquette "naïve" (ms)
+
+/* ---------- Réglages : lecture générique des curseurs / interrupteurs ---------- */
+document.querySelectorAll('[data-k]').forEach(e=>{
+  const up=()=>{
+    S[e.dataset.k]=e.type==='checkbox'?e.checked:+e.value;
+    const o=e.parentNode.querySelector('output'); if(o)o.textContent=e.value+(e.dataset.u||'');
+  };
+  e.addEventListener('input',up); up();
+});
+const set=(k,v)=>{const e=$(`[data-k=${k}]`);e.value=v;e.dispatchEvent(new Event('input'))};
+
+/* ---------- Météo (presets) ---------- */
+const W={sun:{clouds:10,storm:0},cloud:{clouds:75,storm:0},storm:{clouds:100,storm:70}};
+document.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>{
+  Object.entries(W[b.dataset.w]).forEach(([k,v])=>set(k,v));
+  document.querySelectorAll('[data-w]').forEach(x=>x.classList.toggle('on',x===b));
+});
+
+/* ---------- Vitesse du temps ---------- */
+$('#spd').oninput=e=>{speed=STEPS[+e.target.value];$('#spdL').textContent=LABELS[+e.target.value]};
+$('#spd').oninput({target:$('#spd')});
+
+/* ---------- Date / heure modifiables ---------- */
+const applyDT=()=>{const v=Date.parse(`${$('#d').value}T${$('#t').value||'00:00'}Z`);if(!isNaN(v))virt=v};
+$('#d').onchange=$('#t').onchange=applyDT;
+
+/* ---------- Position du soleil (altitude) ----------
+   Déclinaison + équation du temps + angle horaire pour le Mont Blanc.
+   Retourne l'altitude (°), la course p (0 = lever, 1 = coucher, null = nuit)
+   et l'altitude maximale du jour. */
+function sunPos(d){
+  const y=d.getUTCFullYear(), mo=d.getUTCMonth();
+  const doy=Math.floor((d-Date.UTC(y,0,0))/864e5);
+  const h=d.getUTCHours()+d.getUTCMinutes()/60+d.getUTCSeconds()/3600;
+  const B=2*Math.PI*(doy-81)/365;
+  const eot=9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B);   // minutes
+  const dec=23.45*RAD*Math.sin(B);
+  const tz=(mo>=3&&mo<=8)?2:1;                                      // heure d'été approx.
+  const H=((h+LON/15-tz+eot/60)-12)*15*RAD;                         // angle horaire
+  const phi=LAT*RAD;
+  const alt=Math.asin(Math.sin(phi)*Math.sin(dec)+Math.cos(phi)*Math.cos(dec)*Math.cos(H))/RAD;
+  const H0=Math.acos(Math.max(-1,Math.min(1,-Math.tan(phi)*Math.tan(dec))));
+  const p=Math.abs(H)<H0?(H+H0)/(2*H0):null;
+  const noon=12-LON/15+tz-eot/60;                                   // midi solaire (h locales)
+  const c0=(Math.sin(-.833*RAD)-Math.sin(phi)*Math.sin(dec))/(Math.cos(phi)*Math.cos(dec));
+  const hd=Math.acos(Math.max(-1,Math.min(1,c0)))/RAD/15;
+  return {alt,p,max:90-Math.abs(LAT-dec/RAD),rise:noon-hd,set:noon+hd};
+}
+
+const hm=x=>{const m=Math.round(((x%24)+24)%24*60)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+
+/* ---------- Couleurs du ciel ---------- */
+const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t), cl=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)), rgb=c=>`rgb(${c.map(Math.round)})`;
+const ST=[[-18,[3,4,14],[0,0,6]],[-12,[8,12,40],[14,20,58]],[-6,[22,32,88],[70,56,110]],[0,[60,72,140],[255,138,60]],
+          [8,[86,140,215],[255,196,130]],[25,[58,140,232],[150,202,250]],[90,[40,120,230],[140,200,255]]];
+function skyCols(a){
+  a=cl(a,-18,90); let i=1; while(ST[i][0]<a)i++;
+  const p=ST[i-1],q=ST[i],t=(a-p[0])/(q[0]-p[0]);
+  return [mix(p[1],q[1],t),mix(p[2],q[2],t)];
+}
+
+/* ---------- Rendu ---------- */
+function render(dt){
+  const s=sunPos(new Date(virt));
+  let alt=s.alt, p=s.p;
+  if(S.sun_man){p=S.sun_pos/100;alt=p>0&&p<1?s.max*Math.sin(Math.PI*p):0}
+
+  // Roue : 24 h = 360°. Deux traits rouges opposés : l'un en haut à 6h, l'autre à 18h
+  const tod=(((virt%864e5)+864e5)%864e5)/36e5, R=(tod-6)*15;
+  $('#wheel').setAttribute('transform',`rotate(${R} 150 140)`);
+  const place=(el,a)=>el.setAttribute('transform',`translate(${150+120*Math.sin(a*RAD)} ${140-120*Math.cos(a*RAD)})`);
+  if(p!==null)place($('#sun'),(p-.5)*180);       // le soleil suit la course réelle (lever → coucher), pas la roue
+  $('#sun').style.opacity=p===null||dragA!==null?0:S.b_sun/100;   // le soleil disparaît pendant le geste
+  const day=tod<12;                                // demi-cadran affiché : matin (0h→12h) ou après-midi (12h→0h)
+  if(day!==lblDay){lblDay=day;labels.forEach((t,i)=>t.textContent=(day?2*i:(12+2*i)%24)+'h')}
+  $('#rise').textContent='🌅 Lever '+hm(s.rise); $('#set').textContent='Coucher '+hm(s.set)+' 🌇';
+  $('#alt').textContent=alt.toFixed(1)+'°';
+  $('#pct').textContent=p===null?'nuit':(p*100).toFixed(1)+' %';
+
+  // Arrière-plan : soleil + météo
+  let [t,b]=skyCols(alt);
+  if(!S.auto){t=[S.sr,S.sg,S.sb];b=mix(t,[255,255,255],.3)}
+  const c=S.clouds/100, st=S.storm/100, lt=cl((alt+8)/25,.12,1);
+  const gr=mix([58,60,68],[176,181,188],lt), dk=k=>k.map(v=>v*(.4+lt*.6));
+  t=mix(mix(t,gr,c*.75),dk([28,31,40]),st*.7);
+  b=mix(mix(b,gr,c*.85),dk([45,48,58]),st*.6);
+  document.body.style.setProperty('--top',rgb(t));
+  document.body.style.setProperty('--bot',rgb(b));
+
+  // Étoiles, nuages, éclairs
+  $('#stars').style.opacity=cl((-3-alt)/9)*S.b_stars/100*(1-c*.9);
+  const cc=$('#clouds'); cc.style.opacity=c*S.b_cloud/100;
+  cc.style.setProperty('--cloud',rgb(mix(mix([120,124,134],[255,255,255],lt),[62,66,76],st)));
+  if(st>0&&S.b_light>0&&Math.random()<st*dt*.35){
+    const f=$('#flash'); f.style.setProperty('--fl',S.b_light/100*.85);
+    f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+  }
+
+  // Champs date / heure (sans écraser la saisie en cours)
+  if(![$('#d'),$('#t')].includes(document.activeElement)){
+    const iso=new Date(virt).toISOString();
+    $('#d').value=iso.slice(0,10); $('#t').value=iso.slice(11,19);
+  }
+}
+
+/* ---------- Réglage de l'heure : on tourne la roue ----------
+   On ne lit que la rotation du doigt autour du centre : un simple clic ne fait rien
+   et le soleil ne saute jamais sous le doigt. Date inchangée (l'heure boucle sur 24 h). */
+const arc=$('#arc'), ctl=$('#ctl'), labels=[]; let lblDay=null;
+let dragA=null;                                   // dernier angle du doigt (° depuis le haut, sens horaire) ou null
+for(let i=0;i<7;i++){                             // 7 repères fixes sur le demi-cercle (toutes les 2 h)
+  const a=(-90+30*i)*RAD, end=i===0||i===6;
+  const tx=document.createElementNS('http://www.w3.org/2000/svg','text');
+  tx.setAttribute('x',end?(i?290:10):150+137*Math.sin(a)); tx.setAttribute('y',end?131:140-137*Math.cos(a));
+  $('#hours').appendChild(tx); labels.push(tx);
+}
+for(let k=0;k<12;k++){                            // graduations de la roue (toutes les 2 h), à l'intérieur
+  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+  l.setAttribute('x1',150); l.setAttribute('y1',44); l.setAttribute('x2',150); l.setAttribute('y2',30);
+  l.setAttribute('transform',`rotate(${k*30} 150 140)`);
+  $('#tks').appendChild(l);
+}
+const fingerAngle=e=>{
+  const q=new DOMPoint(e.clientX,e.clientY).matrixTransform(arc.getScreenCTM().inverse());
+  return Math.atan2(q.x-150,140-q.y)/RAD;
+};
+function turn(deg){                               // 15° de roue = 1 h
+  const day0=Math.floor(virt/864e5)*864e5;
+  virt=day0+((virt-day0+deg/15*36e5)%864e5+864e5)%864e5;
+}
+ctl.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});  // pas de scroll pendant le geste
+ctl.addEventListener('pointerdown',e=>{ctl.setPointerCapture(e.pointerId);arc.classList.add('touch');dragA=fingerAngle(e)});
+ctl.addEventListener('pointermove',e=>{
+  if(dragA===null)return;
+  const a=fingerAngle(e); turn(((a-dragA+540)%360+360)%360-180); dragA=a;
+});
+const endDrag=()=>{dragA=null;arc.classList.remove('touch')};
+ctl.addEventListener('pointerup',endDrag);
+ctl.addEventListener('pointercancel',endDrag);
+
+let last=performance.now();
+(function loop(now){
+  const dt=Math.min((now-last)/1000,.2); last=now;
+  if(dragA===null)virt+=dt*1000*speed;            // le temps est figé pendant le geste
+  render(dt);
+  requestAnimationFrame(loop);
+})(last);
+</script>
+</body>
+</html>

@@ -129,8 +129,8 @@ const LAT=45.8326, LON=6.8652;            // position du Mont Blanc
 const RAD=Math.PI/180;
 const DEG_PER_H=15;                       // 15° de cadran = 1 h
 const CX=150, CY=150, R=104;              // centre et rayon de l'arc jour/nuit (viewBox du SVG)
-const QUARTER=9e5;                        // 15 min en ms
-const HAPTIC={pulse:10,minGap:100};       // durée d'un clic et délai minimal entre deux clics (ms)
+const CLICK_STEP=18e5;                    // un clic haptique toutes les 30 min (ms)
+const HAPTIC={pulse:15,minGap:100};       // durée d'un clic et délai minimal entre deux clics (ms)
 const SVGNS='http://www.w3.org/2000/svg';
 
 // Vitesses du curseur « Vitesse du temps » : [secondes simulées par seconde réelle, libellé]
@@ -328,7 +328,7 @@ const fingerAngle=e=>{
   return Math.atan2(q.x-CX,CY-q.y)/RAD;
 };
 
-/* Petit clic à chaque quart d'heure franchi (tous les clics sont identiques).
+/* Petit clic à chaque demi-heure franchie (tous les clics sont identiques).
    Un clic est ignoré s'il tombe moins de HAPTIC.minGap ms après le précédent : évite la
    « bouillie » sur les vibreurs lents quand on tourne vite.
    Android : navigator.vibrate. iPhone (Safari sans vibrate()) : retour haptique d'un
@@ -349,12 +349,12 @@ function buzz(){
 }
 function turn(deg){                                                 // fait avancer l'heure (la date suit)
   virt+=deg/DEG_PER_H*36e5;
-  const q=Math.floor(virt/QUARTER);
-  if(q!==lastQ){lastQ=q;buzz()}                                     // un quart d'heure franchi = un clic
+  const q=Math.floor(virt/CLICK_STEP);
+  if(q!==lastQ){lastQ=q;buzz()}                                     // un cran de CLICK_STEP franchi = un clic
 }
 
 ctl.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});   // pas de scroll pendant le geste
-ctl.addEventListener('pointerdown',e=>{ctl.setPointerCapture(e.pointerId);s1.classList.add('touch');dragA=fingerAngle(e);lastQ=Math.floor(virt/QUARTER)});
+ctl.addEventListener('pointerdown',e=>{ctl.setPointerCapture(e.pointerId);s1.classList.add('touch');dragA=fingerAngle(e);lastQ=Math.floor(virt/CLICK_STEP)});
 ctl.addEventListener('pointermove',e=>{
   if(dragA===null)return;
   const a=fingerAngle(e); turn(((a-dragA+540)%360+360)%360-180); dragA=a;   // écart d'angle ramené entre -180° et 180°

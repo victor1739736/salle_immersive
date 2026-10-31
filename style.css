@@ -34,44 +34,60 @@ summary{font-weight:600;cursor:pointer;list-style:none}
 summary::after{content:"▾";float:right;opacity:.6}
 details[open] summary::after{content:"▴"}
 
-/* Arc du soleil */
-#arc{width:100%;display:block}
-.arc{fill:none;stroke:rgba(255,255,255,.45);stroke-width:2;stroke-dasharray:3 6}
-.hor{stroke:rgba(255,255,255,.5);stroke-width:1.5}
-#sun circle{fill:#ffd24d}
-#sun{transition:opacity .2s}
+/* Cadran solaire 24 h : midi en haut, minuit en bas, un tour = un jour */
+#arc{display:block;width:100%;max-width:360px;margin:0 auto;overflow:visible}
+.day,.night{fill:none;stroke-width:5;stroke-linecap:round}
+.day{stroke:#ffd24d}
+.night{stroke:rgba(150,162,255,.5)}
+.mk{stroke:#fff;stroke-width:2;stroke-linecap:round;opacity:.85}
+.rt{stroke:#ff3b30;stroke-width:3.5;stroke-linecap:round;pointer-events:none;opacity:0;transition:opacity .2s}
+/* Traits d'heure : n'apparaissent qu'au toucher de la roue, et tournent avec elle (comme le trait rouge) */
+.tk{opacity:0;transition:opacity .2s;pointer-events:none}
+.tk line{stroke:#fff;stroke-width:1.5;stroke-linecap:round;opacity:.8}
+.tk line.k{stroke-width:2.4;opacity:1}
+#s1.touch .tk,#s1.touch .rt{opacity:1}
+#sun{pointer-events:none}
+#sunfill,#ghost{transition:opacity .3s}
+#sun .disc{fill:#ffd24d}
 #sun .halo{fill:rgba(255,210,77,.3)}
+.ghost{fill:none;stroke:#ffd24d;stroke-width:1.5;stroke-dasharray:3 2.5;opacity:0}
 
-/* Réglage de l'heure au toucher */
-#arc{overflow:visible;position:relative;z-index:2}
+/* Réglage de l'heure au toucher : le soleil suit la rotation du doigt, les repères apparaissent */
 #ctl{touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none}
 #s1.touch #ctl{cursor:grabbing}
-.hit{fill:transparent;stroke:none}
-#sun .tz{fill:transparent}
-/* pendant le geste : tout ce qui est sous la roue s'efface jusqu'au curseur de vitesse (sans bouger la mise en page) */
-.arc,.hor,.sunt,.read,.two{transition:opacity .2s}
-#s1.touch .arc,#s1.touch .hor,#s1.touch .sunt,#s1.touch .read,#s1.touch .two{opacity:0}
-#s1.touch .two{pointer-events:none}
-/* cadran complet : visible seulement pendant le geste */
+.hit{fill:none;stroke:transparent;stroke-width:64;pointer-events:stroke}
 .dial{opacity:0;transition:opacity .2s;pointer-events:none}
 #s1.touch .dial{opacity:1}
 .dots circle{fill:#fff;opacity:.75}
-.hrs{opacity:.95}
-.hrs text{fill:#fff;font-size:10px;text-anchor:middle;dominant-baseline:middle;font-variant-numeric:tabular-nums}
-.wt{opacity:.85}
-.wt line{stroke:#fff;stroke-width:1.5;stroke-linecap:round}
-.rt{stroke:#ff3b30;stroke-width:3;stroke-linecap:round}
-.sunt text{fill:#fff;font-size:11px;opacity:.9}
+.hrs{pointer-events:none}
+.hrs text{fill:#fff;font-size:10px;text-anchor:middle;dominant-baseline:middle;font-variant-numeric:tabular-nums;opacity:0;transition:opacity .2s}
+.hrs text.k{opacity:.65}
+#s1.touch .hrs text{opacity:.95}
+
+/* Centre : heure et date toujours visibles ; un toucher ouvre les champs de saisie */
+#center{cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#center:focus{outline:none}
+#center:focus-visible circle{stroke:#fff;stroke-width:1.5}
+#center circle{fill:transparent}
+#center text{fill:#fff;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
+#clk{font-size:34px;font-weight:600;font-variant-numeric:tabular-nums}
+#tSC{font-size:16px;font-weight:400;opacity:.65}
+#dte{font-size:13px;opacity:.9}
+#sr{font-size:11px;opacity:.8}
+#hint{font-size:10px;opacity:.5}
 .read{text-align:center;font-size:.9rem;opacity:.9;margin-bottom:10px}
 .read b{color:var(--acc);font-size:1.05rem}
 
 /* Contrôles */
-.two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.two{display:none;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+#s1.edit .two{display:grid}
 label{font-size:.85rem}
 .two label{display:grid;gap:4px}
 input[type=date],input[type=time]{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.1);color:#fff;font:inherit}
 input[type=range]{width:100%;accent-color:var(--acc)}
 input[type=checkbox]{width:22px;height:22px;accent-color:var(--acc)}
+.now{grid-column:1/-1;width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.1);color:#fff;font:inherit;font-size:.9rem;cursor:pointer}
+.now:active{background:var(--acc);color:#1a1a1a;border-color:var(--acc)}
 .speed{margin-bottom:12px}
 .speed .head{display:flex;justify-content:space-between;margin-bottom:4px}
 .speed output{color:var(--acc);font-weight:600}

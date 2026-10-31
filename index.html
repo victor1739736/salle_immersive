@@ -16,32 +16,35 @@
 
 <!-- SECTION 1 : soleil, temps, météo -->
 <section id="s1" class="card">
-  <svg id="arc" viewBox="0 0 300 172" aria-label="Roue du soleil">
-    <defs><clipPath id="up"><rect x="-40" y="-60" width="380" height="202"/></clipPath></defs>
-    <path class="arc" d="M30 140 A120 120 0 0 1 270 140"/>
-    <line class="hor" x1="10" y1="140" x2="290" y2="140"/>
+  <svg id="arc" viewBox="0 0 300 300" aria-label="Cadran solaire de 24 h">
+    <g id="dots" class="dial dots"></g>
+    <g id="hours" class="hrs"></g>
+    <g id="ticks" class="tk"></g>
+    <path id="dayArc" class="day"/>
+    <path id="nightArc" class="night"/>
+    <line id="mr" class="mk"/><line id="ms" class="mk"/>
+    <line id="hand" class="rt" x1="150" y1="68" x2="150" y2="51.5"/>
     <g id="ctl">
-      <path class="hit" d="M13 140 A137 137 0 0 1 287 140Z"/>
-      <!-- Cadran complet, visible uniquement pendant le geste -->
-      <g id="dial" class="dial">
-        <g id="dots" class="dots"></g>
-        <g id="hours" class="hrs"></g>
-        <g id="wheel">
-          <g id="tks" class="wt"></g>
-          <line class="rt" x1="150" y1="52" x2="150" y2="28"/>
-        </g>
-      </g>
-      <g clip-path="url(#up)">
-        <g id="sun"><circle class="halo" r="18"/><circle r="10"/><circle class="tz" r="26"/></g>
+      <circle class="hit" cx="150" cy="150" r="112"/>
+      <g id="sun">
+        <g id="sunfill"><circle class="halo" r="17"/><circle class="disc" r="9"/></g>
+        <circle id="ghost" class="ghost" r="9"/>
       </g>
     </g>
-    <g class="sunt"><text id="rise" x="8" y="162"></text><text id="set" x="292" y="162" text-anchor="end"></text></g>
+    <g id="center" role="button" tabindex="0" aria-label="Modifier la date et l'heure" aria-expanded="false">
+      <circle cx="150" cy="150" r="78"/>
+      <text id="clk" x="150" y="140"><tspan id="tHM"></tspan><tspan id="tSC"></tspan></text>
+      <text id="dte" x="150" y="164"></text>
+      <text id="sr" x="150" y="186"></text>
+      <text id="hint" x="150" y="207">✎ modifier</text>
+    </g>
   </svg>
-  <p class="read">Altitude <b id="alt">–</b> · Course du soleil <b id="pct">–</b></p>
+  <p class="read">Altitude <b id="alt">–</b> · <span id="pl">Course du soleil</span> <b id="pct">–</b></p>
 
   <div class="two">
     <label>Date maquette<input type="date" id="d"></label>
     <label>Heure maquette<input type="time" id="t" step="1"></label>
+    <button type="button" id="now" class="now">🕒 Régler sur l'heure actuelle</button>
   </div>
 
   <div class="speed">
@@ -129,8 +132,13 @@ $('#spd').oninput=e=>{speed=STEPS[+e.target.value];$('#spdL').textContent=LABELS
 $('#spd').oninput({target:$('#spd')});
 
 /* ---------- Date / heure modifiables ---------- */
-const applyDT=()=>{const v=Date.parse(`${$('#d').value}T${$('#t').value||'00:00'}Z`);if(!isNaN(v))virt=v};
+let dirty=false;                                  // vrai si un champ a été modifié à la main et pas encore appliqué
+const applyDT=()=>{const v=Date.parse(`${$('#d').value}T${$('#t').value||'00:00'}Z`);if(!isNaN(v))virt=v;dirty=false};
 $('#d').onchange=$('#t').onchange=applyDT;
+$('#d').oninput=$('#t').oninput=()=>{dirty=true};
+
+/* Bouton : remet la maquette sur la date et l'heure actuelles de l'appareil */
+$('#now').onclick=()=>{virt=Date.now()-new Date().getTimezoneOffset()*60000;dirty=false;const a=document.activeElement;if(a&&a.closest('.two'))a.blur()};
 
 /* ---------- Position du soleil (altitude) ----------
    Déclinaison + équation du temps + angle horaire pour le Mont Blanc.
@@ -173,19 +181,35 @@ function render(dt){
   let alt=s.alt, p=s.p;
   if(S.sun_man){p=S.sun_pos/100;alt=p>0&&p<1?s.max*Math.sin(Math.PI*p):0}
 
-  // Roue : cadran de 12 h = 360° (30° par heure), 0h/12h en haut. Un seul trait rouge.
-  const tod=(((virt%864e5)+864e5)%864e5)/36e5, R=(tod%12)*30;
-  $('#wheel').setAttribute('transform',`rotate(${R} 150 140)`);
-  const place=(el,a)=>el.setAttribute('transform',`translate(${150+120*Math.sin(a*RAD)} ${140-120*Math.cos(a*RAD)})`);
-  if(p!==null)place($('#sun'),(p-.5)*180);       // le soleil suit la course réelle (lever → coucher), pas la roue
-  $('#sun').style.opacity=p===null||dragA!==null?0:S.b_sun/100;   // le soleil disparaît pendant le geste
-  // Heures du cadran : 0h→12h le matin, 12h→24h l'après-midi (bascule quand le trait passe en haut).
-  // Le repère du haut affiche l'extrémité la plus proche du trait (0h/12h ou 12h/24h).
-  const pm=tod>=12, top=pm?(tod<18?12:24):(tod<6?0:12), key=(pm?'p':'a')+top;
-  if(key!==lblKey){lblKey=key;labels.forEach((t,k)=>t.textContent=(k?(pm?12:0)+k:top)+'h')}
-  $('#rise').textContent='🌅 Lever '+hm(s.rise); $('#set').textContent='Coucher '+hm(s.set)+' 🌇';
+  // Cadran de 24 h : 12h en haut, 15° par heure, sens horaire (lever à gauche, coucher à droite)
+  const tod=(((virt%864e5)+864e5)%864e5)/36e5, th=(tod-12)*15;
+  const aR=(s.rise-12)*15, aS=(s.set-12)*15, arcKey=aR.toFixed(2)+'|'+aS.toFixed(2);
+  if(arcKey!==lastArc){                            // arcs jour / nuit : ne bougent qu'au changement de date
+    lastArc=arcKey;
+    $('#dayArc').setAttribute('d',arcD(aR,aS)); $('#nightArc').setAttribute('d',arcD(aS,aR+360));
+    mark($('#mr'),aR); mark($('#ms'),aS);
+    $('#sr').textContent='🌅 '+hm(s.rise)+' · '+hm(s.set)+' 🌇';
+  }
+  const isDay=S.sun_man||(tod>=s.rise&&tod<=s.set);
+  const sa=S.sun_man?aR+p*(aS-aR):th;              // soleil manuel : sur sa course ; sinon il suit l'heure
+  const [sx,sy]=pt(sa);
+  $('#sun').setAttribute('transform',`translate(${sx.toFixed(2)} ${sy.toFixed(2)})`);
+  $('#sunfill').style.opacity=isDay?S.b_sun/100:0;  // jour : soleil plein
+  $('#ghost').style.opacity=isDay?0:.9;             // nuit : soleil fantôme (pas de lune dans la maquette)
+  const rot=`rotate(${th} 150 150)`;               // la roue tourne avec l'heure : trait rouge (= le soleil) et traits d'heure ensemble
+  $('#hand').setAttribute('transform',rot); $('#ticks').setAttribute('transform',rot);
+  $('#hand').style.opacity=S.sun_man?1:'';         // soleil manuel : le trait rouge reste affiché comme repère de l'heure
+  let lab,val;
+  if(isDay){lab='Course du soleil';val=S.sun_man?p:(tod-s.rise)/(s.set-s.rise)}
+  else{lab='Nuit';val=(tod>s.set?tod-s.set:tod+24-s.set)/(24-s.set+s.rise)}
+  $('#pl').textContent=lab; $('#pct').textContent=(cl(val)*100).toFixed(1)+' %';
   $('#alt').textContent=alt.toFixed(1)+'°';
-  $('#pct').textContent=p===null?'nuit':(p*100).toFixed(1)+' %';
+
+  // Heure et date au centre (toujours affichées, y compris pendant le geste)
+  const iso=new Date(virt).toISOString(), hmT=iso.slice(11,16), scT=':'+iso.slice(17,19), dT=iso.slice(0,10);
+  if(hmT!==lastHM){lastHM=hmT;$('#tHM').textContent=hmT}
+  if(scT!==lastSC){lastSC=scT;$('#tSC').textContent=scT}
+  if(dT!==lastD){lastD=dT;$('#dte').textContent=new Date(virt).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}
 
   // Arrière-plan : soleil + météo
   let [t,b]=skyCols(alt);
@@ -208,38 +232,43 @@ function render(dt){
 
   // Champs date / heure (sans écraser la saisie en cours)
   if(![$('#d'),$('#t')].includes(document.activeElement)){
-    const iso=new Date(virt).toISOString();
     $('#d').value=iso.slice(0,10); $('#t').value=iso.slice(11,19);
   }
 }
 
-/* ---------- Réglage de l'heure : on tourne la roue ----------
+/* ---------- Réglage de l'heure : on tourne le cadran ----------
    On ne lit que la rotation du doigt autour du centre : un simple clic ne fait rien
-   et le trait rouge ne saute jamais sous le doigt. Un tour complet = 12 h ; on peut passer les jours. */
-const arc=$('#arc'), ctl=$('#ctl'), s1=$('#s1'), labels=[]; let lblKey=null;
-const SVGNS='http://www.w3.org/2000/svg', DEG_PER_H=30;   // 30° de roue = 1 h (tour complet = 12 h)
+   et le soleil ne saute jamais sous le doigt. Un tour complet = 24 h ; passer minuit change la date. */
+const arc=$('#arc'), ctl=$('#ctl'), s1=$('#s1');
+const SVGNS='http://www.w3.org/2000/svg', DEG_PER_H=15;       // 15° de cadran = 1 h
+const CX=150, CY=150, R=104;                                  // centre et rayon de l'arc jour/nuit
+let lastArc=null, lastHM=null, lastSC=null, lastD=null;
 let dragA=null;                                   // dernier angle du doigt (° depuis le haut, sens horaire) ou null
-for(let k=0;k<12;k++){                            // 12 repères fixes, comme une horloge (0 en haut)
-  const a=k*30*RAD, tx=document.createElementNS(SVGNS,'text');
-  tx.setAttribute('x',150+137*Math.sin(a)); tx.setAttribute('y',140-137*Math.cos(a));
-  $('#hours').appendChild(tx); labels.push(tx);
+const pt=(a,r=R)=>[CX+r*Math.sin(a*RAD), CY-r*Math.cos(a*RAD)];   // a : ° depuis le haut (midi), sens horaire
+const arcD=(a0,a1)=>{const [x0,y0]=pt(a0),[x1,y1]=pt(a1);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${R} ${R} 0 ${a1-a0>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`};
+const mark=(el,a)=>{const [x0,y0]=pt(a,R-9),[x1,y1]=pt(a,R+9);       // petit trait de lever / coucher
+  el.setAttribute('x1',x0);el.setAttribute('y1',y0);el.setAttribute('x2',x1);el.setAttribute('y2',y1)};
+for(let h=0;h<24;h++){                            // 24 heures, comme une horloge (12h en haut, 0h en bas)
+  const [x,y]=pt((h-12)*15,132), tx=document.createElementNS(SVGNS,'text');
+  tx.setAttribute('x',x.toFixed(1)); tx.setAttribute('y',y.toFixed(1)); tx.textContent=h+'h';
+  if(h%6===0)tx.setAttribute('class','k');        // 0h, 6h, 12h, 18h restent visibles au repos
+  $('#hours').appendChild(tx);
+  const [x0,y0]=pt(h*15,h%6?92:88), [x1,y1]=pt(h*15,98.5), tk=document.createElementNS(SVGNS,'line');
+  tk.setAttribute('x1',x0.toFixed(1)); tk.setAttribute('y1',y0.toFixed(1)); tk.setAttribute('x2',x1.toFixed(1)); tk.setAttribute('y2',y1.toFixed(1));
+  if(h%6===0)tk.setAttribute('class','k');        // traits plus longs toutes les 6 h à partir du trait rouge
+  $('#ticks').appendChild(tk);
 }
-for(let k=0;k<48;k++){                            // points fixes toutes les 15 min (7,5° chacun)
-  const a=k*7.5*RAD, c=document.createElementNS(SVGNS,'circle');
-  c.setAttribute('cx',150+120*Math.sin(a)); c.setAttribute('cy',140-120*Math.cos(a)); c.setAttribute('r',1.6);
+for(let k=0;k<96;k++){                            // points fixes toutes les 15 min (3,75° chacun)
+  const [x,y]=pt(k*3.75-180,116), c=document.createElementNS(SVGNS,'circle');
+  c.setAttribute('cx',x.toFixed(1)); c.setAttribute('cy',y.toFixed(1)); c.setAttribute('r',k%4?1.4:2.2);
   $('#dots').appendChild(c);
-}
-for(let k=0;k<12;k++){                            // graduations de la roue (toutes les heures), à l'intérieur
-  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
-  l.setAttribute('x1',150); l.setAttribute('y1',44); l.setAttribute('x2',150); l.setAttribute('y2',30);
-  l.setAttribute('transform',`rotate(${k*30} 150 140)`);
-  $('#tks').appendChild(l);
 }
 const fingerAngle=e=>{
   const q=new DOMPoint(e.clientX,e.clientY).matrixTransform(arc.getScreenCTM().inverse());
-  return Math.atan2(q.x-150,140-q.y)/RAD;
+  return Math.atan2(q.x-CX,CY-q.y)/RAD;
 };
-/* ---------- Retour haptique sur la roue ----------
+/* ---------- Retour haptique sur le cadran ----------
    Petit clic à chaque quart d'heure franchi, clic plus fort à chaque heure pile.
    Android (Chrome, Firefox…) : navigator.vibrate. iPhone : Safari n'a pas vibrate() ;
    on tente le retour haptique d'un interrupteur natif (<input switch>, iOS 17.4+). */
@@ -247,7 +276,7 @@ const HAPTIC={quarter:10,hour:35}, QUARTER=9e5;   // durées en ms
 let swEl=null, lastQ=0, lastBuzz=0;
 function buzz(strong){
   const now=performance.now();
-  if(!strong&&now-lastBuzz<35)return;             // pas de bourdonnement quand on tourne vite
+  if(!strong&&now-lastBuzz<45)return;             // pas de bourdonnement quand on tourne vite
   lastBuzz=now;
   if(navigator.vibrate){navigator.vibrate(strong?HAPTIC.hour:HAPTIC.quarter);return}
   if(!swEl){
@@ -264,17 +293,8 @@ function turn(deg){                               // la date suit : passer minui
   const q=Math.floor(virt/QUARTER);
   if(q!==lastQ){const h=Math.floor(q/4)!==Math.floor(lastQ/4);lastQ=q;buzz(h)}
 }
-
-// Le cercle complet doit tenir entre le centre de la roue et le curseur de vitesse :
-// on mesure la place disponible et on réduit le cadran si besoin (sans jamais l'agrandir).
-function fitDial(){
-  const r=arc.getBoundingClientRect(), u=r.width/300;               // px par unité du viewBox
-  const room=$('.speed').getBoundingClientRect().top-(r.top+140*u)-4;
-  const f=Math.max(.5,Math.min(1,room/(143*u)));
-  $('#dial').setAttribute('transform',`translate(150 140) scale(${f}) translate(-150 -140)`);
-}
 ctl.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});  // pas de scroll pendant le geste
-ctl.addEventListener('pointerdown',e=>{ctl.setPointerCapture(e.pointerId);fitDial();s1.classList.add('touch');dragA=fingerAngle(e);lastQ=Math.floor(virt/QUARTER)});
+ctl.addEventListener('pointerdown',e=>{ctl.setPointerCapture(e.pointerId);s1.classList.add('touch');dragA=fingerAngle(e);lastQ=Math.floor(virt/QUARTER)});
 ctl.addEventListener('pointermove',e=>{
   if(dragA===null)return;
   const a=fingerAngle(e); turn(((a-dragA+540)%360+360)%360-180); dragA=a;
@@ -282,6 +302,22 @@ ctl.addEventListener('pointermove',e=>{
 const endDrag=()=>{dragA=null;s1.classList.remove('touch')};
 ctl.addEventListener('pointerup',endDrag);
 ctl.addEventListener('pointercancel',endDrag);
+
+/* Toucher le centre : ouvre / ferme les champs date et heure (saisie précise) */
+const ctr=$('#center');
+const setEdit=o=>{s1.classList.toggle('edit',o);ctr.setAttribute('aria-expanded',o);$('#hint').textContent=o?'▴ fermer':'✎ modifier'};
+const closeEdit=()=>{
+  if(!s1.classList.contains('edit'))return;
+  if(dirty)applyDT();                             // saisie en cours : on l'applique avant de fermer
+  const a=document.activeElement; if(a&&a.closest('.two'))a.blur();
+  setEdit(false);
+};
+const toggleEdit=()=>s1.classList.contains('edit')?closeEdit():setEdit(true);
+/* Les champs se referment dès qu'on touche autre chose que le centre ou les champs eux-mêmes */
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('.two,#center'))closeEdit()},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEdit()});
+ctr.addEventListener('click',toggleEdit);
+ctr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleEdit()}});
 
 let last=performance.now();
 (function loop(now){

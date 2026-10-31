@@ -37,19 +37,24 @@ details[open] summary::after{content:"▴"}
 #sun .halo{fill:rgba(255,210,77,.3)}
 
 /* Réglage de l'heure au toucher */
-#arc{overflow:visible}
+#arc{overflow:visible;position:relative;z-index:2}
 #ctl{touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none}
-#arc.touch #ctl{cursor:grabbing}
+#s1.touch #ctl{cursor:grabbing}
 .hit{fill:transparent;stroke:none}
 #sun .tz{fill:transparent}
-.hrs{opacity:0;transition:opacity .2s;pointer-events:none}
+/* pendant le geste : tout ce qui est sous la roue s'efface jusqu'au curseur de vitesse (sans bouger la mise en page) */
+.arc,.hor,.sunt,.read,.two{transition:opacity .2s}
+#s1.touch .arc,#s1.touch .hor,#s1.touch .sunt,#s1.touch .read,#s1.touch .two{opacity:0}
+#s1.touch .two{pointer-events:none}
+/* cadran complet : visible seulement pendant le geste */
+.dial{opacity:0;transition:opacity .2s;pointer-events:none}
+#s1.touch .dial{opacity:1}
+.dots circle{fill:#fff;opacity:.75}
+.hrs{opacity:.95}
 .hrs text{fill:#fff;font-size:10px;text-anchor:middle;dominant-baseline:middle;font-variant-numeric:tabular-nums}
-#arc.touch .hrs{opacity:.95}
-.wt{opacity:0;transition:opacity .2s;pointer-events:none}
+.wt{opacity:.85}
 .wt line{stroke:#fff;stroke-width:1.5;stroke-linecap:round}
-#arc.touch .wt{opacity:.85}
-.rt{stroke:#ff3b30;stroke-width:3;stroke-linecap:round;pointer-events:none;opacity:0;transition:opacity .2s}
-#arc.touch .rt{opacity:1}
+.rt{stroke:#ff3b30;stroke-width:3;stroke-linecap:round}
 .sunt text{fill:#fff;font-size:11px;opacity:.9}
 .read{text-align:center;font-size:.9rem;opacity:.9;margin-bottom:10px}
 .read b{color:var(--acc);font-size:1.05rem}

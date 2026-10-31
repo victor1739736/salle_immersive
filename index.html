@@ -20,15 +20,18 @@
     <defs><clipPath id="up"><rect x="-40" y="-60" width="380" height="202"/></clipPath></defs>
     <path class="arc" d="M30 140 A120 120 0 0 1 270 140"/>
     <line class="hor" x1="10" y1="140" x2="290" y2="140"/>
-    <g id="hours" class="hrs"></g>
     <g id="ctl">
       <path class="hit" d="M13 140 A137 137 0 0 1 287 140Z"/>
-      <g clip-path="url(#up)">
+      <!-- Cadran complet, visible uniquement pendant le geste -->
+      <g id="dial" class="dial">
+        <g id="dots" class="dots"></g>
+        <g id="hours" class="hrs"></g>
         <g id="wheel">
           <g id="tks" class="wt"></g>
           <line class="rt" x1="150" y1="52" x2="150" y2="28"/>
-          <line class="rt" x1="150" y1="52" x2="150" y2="28" transform="rotate(180 150 140)"/>
         </g>
+      </g>
+      <g clip-path="url(#up)">
         <g id="sun"><circle class="halo" r="18"/><circle r="10"/><circle class="tz" r="26"/></g>
       </g>
     </g>
@@ -170,14 +173,16 @@ function render(dt){
   let alt=s.alt, p=s.p;
   if(S.sun_man){p=S.sun_pos/100;alt=p>0&&p<1?s.max*Math.sin(Math.PI*p):0}
 
-  // Roue : 24 h = 360°. Deux traits rouges opposés : l'un en haut à 6h, l'autre à 18h
-  const tod=(((virt%864e5)+864e5)%864e5)/36e5, R=(tod-6)*15;
+  // Roue : cadran de 12 h = 360° (30° par heure), 0h/12h en haut. Un seul trait rouge.
+  const tod=(((virt%864e5)+864e5)%864e5)/36e5, R=(tod%12)*30;
   $('#wheel').setAttribute('transform',`rotate(${R} 150 140)`);
   const place=(el,a)=>el.setAttribute('transform',`translate(${150+120*Math.sin(a*RAD)} ${140-120*Math.cos(a*RAD)})`);
   if(p!==null)place($('#sun'),(p-.5)*180);       // le soleil suit la course réelle (lever → coucher), pas la roue
   $('#sun').style.opacity=p===null||dragA!==null?0:S.b_sun/100;   // le soleil disparaît pendant le geste
-  const day=tod<12;                                // demi-cadran affiché : matin (0h→12h) ou après-midi (12h→0h)
-  if(day!==lblDay){lblDay=day;labels.forEach((t,i)=>t.textContent=(day?2*i:(12+2*i)%24)+'h')}
+  // Heures du cadran : 0h→12h le matin, 12h→24h l'après-midi (bascule quand le trait passe en haut).
+  // Le repère du haut affiche l'extrémité la plus proche du trait (0h/12h ou 12h/24h).
+  const pm=tod>=12, top=pm?(tod<18?12:24):(tod<6?0:12), key=(pm?'p':'a')+top;
+  if(key!==lblKey){lblKey=key;labels.forEach((t,k)=>t.textContent=(k?(pm?12:0)+k:top)+'h')}
   $('#rise').textContent='🌅 Lever '+hm(s.rise); $('#set').textContent='Coucher '+hm(s.set)+' 🌇';
   $('#alt').textContent=alt.toFixed(1)+'°';
   $('#pct').textContent=p===null?'nuit':(p*100).toFixed(1)+' %';
@@ -210,16 +215,21 @@ function render(dt){
 
 /* ---------- Réglage de l'heure : on tourne la roue ----------
    On ne lit que la rotation du doigt autour du centre : un simple clic ne fait rien
-   et le soleil ne saute jamais sous le doigt. Date inchangée (l'heure boucle sur 24 h). */
-const arc=$('#arc'), ctl=$('#ctl'), labels=[]; let lblDay=null;
+   et le trait rouge ne saute jamais sous le doigt. Un tour complet = 12 h ; on peut passer les jours. */
+const arc=$('#arc'), ctl=$('#ctl'), s1=$('#s1'), labels=[]; let lblKey=null;
+const SVGNS='http://www.w3.org/2000/svg', DEG_PER_H=30;   // 30° de roue = 1 h (tour complet = 12 h)
 let dragA=null;                                   // dernier angle du doigt (° depuis le haut, sens horaire) ou null
-for(let i=0;i<7;i++){                             // 7 repères fixes sur le demi-cercle (toutes les 2 h)
-  const a=(-90+30*i)*RAD, end=i===0||i===6;
-  const tx=document.createElementNS('http://www.w3.org/2000/svg','text');
-  tx.setAttribute('x',end?(i?290:10):150+137*Math.sin(a)); tx.setAttribute('y',end?131:140-137*Math.cos(a));
+for(let k=0;k<12;k++){                            // 12 repères fixes, comme une horloge (0 en haut)
+  const a=k*30*RAD, tx=document.createElementNS(SVGNS,'text');
+  tx.setAttribute('x',150+137*Math.sin(a)); tx.setAttribute('y',140-137*Math.cos(a));
   $('#hours').appendChild(tx); labels.push(tx);
 }
-for(let k=0;k<12;k++){                            // graduations de la roue (toutes les 2 h), à l'intérieur
+for(let k=0;k<48;k++){                            // points fixes toutes les 15 min (7,5° chacun)
+  const a=k*7.5*RAD, c=document.createElementNS(SVGNS,'circle');
+  c.setAttribute('cx',150+120*Math.sin(a)); c.setAttribute('cy',140-120*Math.cos(a)); c.setAttribute('r',1.6);
+  $('#dots').appendChild(c);
+}
+for(let k=0;k<12;k++){                            // graduations de la roue (toutes les heures), à l'intérieur
   const l=document.createElementNS('http://www.w3.org/2000/svg','line');
   l.setAttribute('x1',150); l.setAttribute('y1',44); l.setAttribute('x2',150); l.setAttribute('y2',30);
   l.setAttribute('transform',`rotate(${k*30} 150 140)`);
@@ -229,17 +239,23 @@ const fingerAngle=e=>{
   const q=new DOMPoint(e.clientX,e.clientY).matrixTransform(arc.getScreenCTM().inverse());
   return Math.atan2(q.x-150,140-q.y)/RAD;
 };
-function turn(deg){                               // 15° de roue = 1 h
-  const day0=Math.floor(virt/864e5)*864e5;
-  virt=day0+((virt-day0+deg/15*36e5)%864e5+864e5)%864e5;
+function turn(deg){virt+=deg/DEG_PER_H*36e5}      // la date suit : passer minuit change de jour
+
+// Le cercle complet doit tenir entre le centre de la roue et le curseur de vitesse :
+// on mesure la place disponible et on réduit le cadran si besoin (sans jamais l'agrandir).
+function fitDial(){
+  const r=arc.getBoundingClientRect(), u=r.width/300;               // px par unité du viewBox
+  const room=$('.speed').getBoundingClientRect().top-(r.top+140*u)-4;
+  const f=Math.max(.5,Math.min(1,room/(143*u)));
+  $('#dial').setAttribute('transform',`translate(150 140) scale(${f}) translate(-150 -140)`);
 }
 ctl.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});  // pas de scroll pendant le geste
-ctl.addEventListener('pointerdown',e=>{ctl.setPointerCapture(e.pointerId);arc.classList.add('touch');dragA=fingerAngle(e)});
+ctl.addEventListener('pointerdown',e=>{ctl.setPointerCapture(e.pointerId);fitDial();s1.classList.add('touch');dragA=fingerAngle(e)});
 ctl.addEventListener('pointermove',e=>{
   if(dragA===null)return;
   const a=fingerAngle(e); turn(((a-dragA+540)%360+360)%360-180); dragA=a;
 });
-const endDrag=()=>{dragA=null;arc.classList.remove('touch')};
+const endDrag=()=>{dragA=null;s1.classList.remove('touch')};
 ctl.addEventListener('pointerup',endDrag);
 ctl.addEventListener('pointercancel',endDrag);
 

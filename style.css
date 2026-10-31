@@ -1,5 +1,11 @@
 *{box-sizing:border-box;margin:0}
 :root{--top:#3c8cf0;--bot:#a5d2ff;--card:rgba(12,22,45,.55);--line:rgba(255,255,255,.18);--acc:#ffb84d;color-scheme:dark}
+/* Téléphone en mode sombre : le ciel est dessiné par la page, on refuse l'assombrissement automatique du navigateur
+   (sinon le bleu ciel devient bleu nuit et les étoiles blanches foncent). */
+@media(prefers-color-scheme:dark){
+ :root{color-scheme:only light}
+ input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-calendar-picker-indicator{filter:invert(1)}
+}
 body{font:16px/1.4 system-ui,-apple-system,sans-serif;color:#fff;min-height:100vh;background:linear-gradient(var(--top),var(--bot)) fixed}
 
 /* Calques d'ambiance (étoiles, nuages, éclairs) */

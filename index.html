@@ -239,7 +239,31 @@ const fingerAngle=e=>{
   const q=new DOMPoint(e.clientX,e.clientY).matrixTransform(arc.getScreenCTM().inverse());
   return Math.atan2(q.x-150,140-q.y)/RAD;
 };
-function turn(deg){virt+=deg/DEG_PER_H*36e5}      // la date suit : passer minuit change de jour
+/* ---------- Retour haptique sur la roue ----------
+   Petit clic à chaque quart d'heure franchi, clic plus fort à chaque heure pile.
+   Android (Chrome, Firefox…) : navigator.vibrate. iPhone : Safari n'a pas vibrate() ;
+   on tente le retour haptique d'un interrupteur natif (<input switch>, iOS 17.4+). */
+const HAPTIC={quarter:10,hour:35}, QUARTER=9e5;   // durées en ms
+let swEl=null, lastQ=0, lastBuzz=0;
+function buzz(strong){
+  const now=performance.now();
+  if(!strong&&now-lastBuzz<35)return;             // pas de bourdonnement quand on tourne vite
+  lastBuzz=now;
+  if(navigator.vibrate){navigator.vibrate(strong?HAPTIC.hour:HAPTIC.quarter);return}
+  if(!swEl){
+    swEl=document.createElement('label');
+    swEl.setAttribute('aria-hidden','true');
+    swEl.style.cssText='position:fixed;left:-99px;top:0;opacity:0;pointer-events:none';
+    swEl.innerHTML='<input type="checkbox" switch tabindex="-1">';
+    document.body.appendChild(swEl);
+  }
+  swEl.click(); if(strong)setTimeout(()=>swEl.click(),45);   // heure = double impulsion
+}
+function turn(deg){                               // la date suit : passer minuit change de jour
+  virt+=deg/DEG_PER_H*36e5;
+  const q=Math.floor(virt/QUARTER);
+  if(q!==lastQ){const h=Math.floor(q/4)!==Math.floor(lastQ/4);lastQ=q;buzz(h)}
+}
 
 // Le cercle complet doit tenir entre le centre de la roue et le curseur de vitesse :
 // on mesure la place disponible et on réduit le cadran si besoin (sans jamais l'agrandir).
@@ -250,7 +274,7 @@ function fitDial(){
   $('#dial').setAttribute('transform',`translate(150 140) scale(${f}) translate(-150 -140)`);
 }
 ctl.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});  // pas de scroll pendant le geste
-ctl.addEventListener('pointerdown',e=>{ctl.setPointerCapture(e.pointerId);fitDial();s1.classList.add('touch');dragA=fingerAngle(e)});
+ctl.addEventListener('pointerdown',e=>{ctl.setPointerCapture(e.pointerId);fitDial();s1.classList.add('touch');dragA=fingerAngle(e);lastQ=Math.floor(virt/QUARTER)});
 ctl.addEventListener('pointermove',e=>{
   if(dragA===null)return;
   const a=fingerAngle(e); turn(((a-dragA+540)%360+360)%360-180); dragA=a;

@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+<!-- Calques d'ambiance plein écran (pilotés par le JS) -->
 <div id="stars" class="fx"></div>
 <div id="clouds" class="fx"><i></i><i></i><i></i></div>
 <div id="flash" class="fx"></div>
@@ -14,23 +16,29 @@
 <main>
 <h1>Maquette Mont Blanc <small>Poste de contrôle</small></h1>
 
-<!-- SECTION 1 : soleil, temps, météo -->
+<!-- ================= SECTION 1 : soleil, temps, météo ================= -->
 <section id="s1" class="card">
+
+  <!-- Cadran 24 h (viewBox 300×300, centre 150,150) ; les repères sont générés par le JS -->
   <svg id="arc" viewBox="0 0 300 300" aria-label="Cadran solaire de 24 h">
-    <g id="dots" class="dial dots"></g>
-    <g id="hours" class="hrs"></g>
-    <g id="ticks" class="tk"></g>
-    <path id="dayArc" class="day"/>
-    <path id="nightArc" class="night"/>
-    <line id="mr" class="mk"/><line id="ms" class="mk"/>
-    <line id="hand" class="rt" x1="150" y1="68" x2="150" y2="51.5"/>
+    <g id="dots" class="dots"></g>                    <!-- points toutes les 15 min -->
+    <g id="hours" class="hrs"></g>                    <!-- numéros 0h…23h -->
+    <g id="ticks" class="tk"></g>                     <!-- traits d'heure (tournent avec la roue) -->
+    <path id="dayArc" class="day"/>                   <!-- arc du jour (lever → coucher) -->
+    <path id="nightArc" class="night"/>               <!-- arc de la nuit -->
+    <line id="mr" class="mk"/><line id="ms" class="mk"/>   <!-- traits lever / coucher -->
+    <line id="hand" class="rt" x1="150" y1="68" x2="150" y2="51.5"/>   <!-- trait rouge = heure actuelle -->
+
+    <!-- Zone tactile : on tourne le doigt autour du centre pour changer l'heure -->
     <g id="ctl">
       <circle class="hit" cx="150" cy="150" r="112"/>
       <g id="sun">
         <g id="sunfill"><circle class="halo" r="17"/><circle class="disc" r="9"/></g>
-        <circle id="ghost" class="ghost" r="9"/>
+        <circle id="ghost" class="ghost" r="9"/>      <!-- soleil fantôme de nuit -->
       </g>
     </g>
+
+    <!-- Centre : heure, date, lever/coucher ; un toucher ouvre les champs de saisie -->
     <g id="center" role="button" tabindex="0" aria-label="Modifier la date et l'heure" aria-expanded="false">
       <circle cx="150" cy="150" r="78"/>
       <text id="clk" x="150" y="140"><tspan id="tHM"></tspan><tspan id="tSC"></tspan></text>
@@ -41,17 +49,20 @@
   </svg>
   <p class="read">Altitude <b id="alt">–</b> · <span id="pl">Course du soleil</span> <b id="pct">–</b></p>
 
+  <!-- Saisie précise (visible quand on touche le centre du cadran) -->
   <div class="two">
     <label>Date maquette<input type="date" id="d"></label>
     <label>Heure maquette<input type="time" id="t" step="1"></label>
     <button type="button" id="now" class="now">🕒 Régler sur l'heure actuelle</button>
   </div>
 
+  <!-- Vitesse du temps (libellés dans SPEEDS, en haut du script) -->
   <div class="speed">
     <div class="head"><label for="spd">Vitesse du temps</label><output id="spdL"></output></div>
     <input type="range" id="spd" min="0" max="8" step="1" value="1">
   </div>
 
+  <!-- Préréglages météo (valeurs dans WEATHER, en haut du script) -->
   <div class="chips">
     <button data-w="sun" class="on">☀️ Beau temps</button>
     <button data-w="cloud">☁️ Nuageux</button>
@@ -59,7 +70,9 @@
   </div>
 </section>
 
-<!-- SECTION 2 : réglages -->
+<!-- ================= SECTION 2 : réglages =================
+     Chaque champ data-k="nom" est lu automatiquement dans l'objet S (S.nom) ;
+     data-u = unité affichée à droite du curseur. -->
 <div id="s2">
   <details open><summary>Ciel</summary>
     <label class="row tg">Couleur automatique<input type="checkbox" data-k="auto" checked></label>
@@ -103,180 +116,224 @@
 </main>
 
 <script>
-const LAT=45.8326, LON=6.8652, RAD=Math.PI/180;
-const $=s=>document.querySelector(s);
-const S={};                                   // état de tous les réglages
-const STEPS=[0,1,10,60,300,1440,3600,7200,14400];
-const LABELS=['Pause','Temps réel','×10','×60','×300','×1 440','×3 600','×7 200','24 h = 6 s'];
-let speed=1, virt=Date.now()-new Date().getTimezoneOffset()*60000; // heure maquette "naïve" (ms)
+/* =====================================================================
+   SOMMAIRE
+   1. Constantes à modifier        5. Calcul : soleil et couleurs du ciel
+   2. Éléments et état             6. Rendu (appelé à chaque image)
+   3. Réglages (curseurs, météo)   7. Cadran tactile + retour haptique
+   4. Temps (vitesse, date/heure)  8. Saisie date/heure + boucle principale
+   ===================================================================== */
 
-/* ---------- Réglages : lecture générique des curseurs / interrupteurs ---------- */
+/* ---------- 1. CONSTANTES À MODIFIER ---------- */
+const LAT=45.8326, LON=6.8652;            // position du Mont Blanc
+const RAD=Math.PI/180;
+const DEG_PER_H=15;                       // 15° de cadran = 1 h
+const CX=150, CY=150, R=104;              // centre et rayon de l'arc jour/nuit (viewBox du SVG)
+const QUARTER=9e5;                        // 15 min en ms
+const HAPTIC={quarter:10,hour:35};        // durée des vibrations (ms)
+const SVGNS='http://www.w3.org/2000/svg';
+
+// Vitesses du curseur « Vitesse du temps » : [secondes simulées par seconde réelle, libellé]
+const SPEEDS=[[0,'Pause'],[1,'Temps réel'],[10,'×10'],[60,'×60'],[300,'×300'],[1440,'×1 440'],[3600,'×3 600'],[7200,'×7 200'],[14400,'24 h = 6 s']];
+
+// Préréglages météo : valeurs appliquées aux curseurs « Nuages » et « Orage »
+const WEATHER={sun:{clouds:10,storm:0},cloud:{clouds:75,storm:0},storm:{clouds:100,storm:70}};
+
+// Couleurs du ciel selon l'altitude du soleil : [altitude°, [haut du ciel RGB], [bas du ciel RGB]]
+const SKY=[[-18,[3,4,14],[0,0,6]],[-12,[8,12,40],[14,20,58]],[-6,[22,32,88],[70,56,110]],[0,[60,72,140],[255,138,60]],
+           [8,[86,140,215],[255,196,130]],[25,[58,140,232],[150,202,250]],[90,[40,120,230],[140,200,255]]];
+
+
+/* ---------- 2. ÉLÉMENTS ET ÉTAT ---------- */
+const $=id=>document.getElementById(id);
+const s1=$('s1'), arc=$('arc'), ctl=$('ctl'), ctr=$('center');
+const dateIn=$('d'), timeIn=$('t');
+
+const S={};                               // valeur de tous les réglages (S.clouds, S.b_sun…)
+const inputs={};                          // champs data-k, par nom
+const localNow=()=>Date.now()-new Date().getTimezoneOffset()*6e4;   // heure « naïve » de l'appareil (ms)
+let virt=localNow();                      // heure maquette (ms, lue en UTC pour l'affichage)
+let speed=1;                              // secondes simulées par seconde réelle
+let dirty=false;                          // vrai si date/heure modifiées à la main et pas encore appliquées
+let dragA=null;                           // dernier angle du doigt (° depuis le haut, sens horaire) ou null
+let lastArc=null, lastHM=null, lastSC=null, lastD=null;   // valeurs déjà affichées (évite de réécrire le DOM)
+let swEl=null, lastQ=0, lastBuzz=0;       // haptique
+
+
+/* ---------- 3. RÉGLAGES ---------- */
+// Lecture générique : chaque curseur / interrupteur data-k alimente S et son <output>
 document.querySelectorAll('[data-k]').forEach(e=>{
-  const up=()=>{
-    S[e.dataset.k]=e.type==='checkbox'?e.checked:+e.value;
+  const k=e.dataset.k, up=()=>{
+    S[k]=e.type==='checkbox'?e.checked:+e.value;
     const o=e.parentNode.querySelector('output'); if(o)o.textContent=e.value+(e.dataset.u||'');
   };
+  inputs[k]=e;
   e.addEventListener('input',up); up();
 });
-const set=(k,v)=>{const e=$(`[data-k=${k}]`);e.value=v;e.dispatchEvent(new Event('input'))};
+const set=(k,v)=>{inputs[k].value=v;inputs[k].dispatchEvent(new Event('input'))};   // change un réglage par code
 
-/* ---------- Météo (presets) ---------- */
-const W={sun:{clouds:10,storm:0},cloud:{clouds:75,storm:0},storm:{clouds:100,storm:70}};
-document.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>{
-  Object.entries(W[b.dataset.w]).forEach(([k,v])=>set(k,v));
-  document.querySelectorAll('[data-w]').forEach(x=>x.classList.toggle('on',x===b));
+// Boutons météo
+const chips=document.querySelectorAll('[data-w]');
+chips.forEach(b=>b.onclick=()=>{
+  Object.entries(WEATHER[b.dataset.w]).forEach(([k,v])=>set(k,v));
+  chips.forEach(x=>x.classList.toggle('on',x===b));
 });
 
-/* ---------- Vitesse du temps ---------- */
-$('#spd').oninput=e=>{speed=STEPS[+e.target.value];$('#spdL').textContent=LABELS[+e.target.value]};
-$('#spd').oninput({target:$('#spd')});
 
-/* ---------- Date / heure modifiables ---------- */
-let dirty=false;                                  // vrai si un champ a été modifié à la main et pas encore appliqué
-const applyDT=()=>{const v=Date.parse(`${$('#d').value}T${$('#t').value||'00:00'}Z`);if(!isNaN(v))virt=v;dirty=false};
-$('#d').onchange=$('#t').onchange=applyDT;
-$('#d').oninput=$('#t').oninput=()=>{dirty=true};
+/* ---------- 4. TEMPS ---------- */
+// Vitesse
+const spd=$('spd');
+spd.oninput=()=>{const [v,label]=SPEEDS[+spd.value];speed=v;$('spdL').textContent=label};
+spd.oninput();
 
-/* Bouton : remet la maquette sur la date et l'heure actuelles de l'appareil */
-$('#now').onclick=()=>{virt=Date.now()-new Date().getTimezoneOffset()*60000;dirty=false;const a=document.activeElement;if(a&&a.closest('.two'))a.blur()};
+// Date / heure saisies à la main
+const applyDT=()=>{const v=Date.parse(`${dateIn.value}T${timeIn.value||'00:00'}Z`);if(!isNaN(v))virt=v;dirty=false};
+dateIn.onchange=timeIn.onchange=applyDT;
+dateIn.oninput=timeIn.oninput=()=>{dirty=true};
+const blurFields=()=>{const a=document.activeElement;if(a&&a.closest('.two'))a.blur()};
+$('now').onclick=()=>{virt=localNow();dirty=false;blurFields()};   // bouton « heure actuelle »
 
-/* ---------- Position du soleil (altitude) ----------
-   Déclinaison + équation du temps + angle horaire pour le Mont Blanc.
-   Retourne l'altitude (°), la course p (0 = lever, 1 = coucher, null = nuit)
-   et l'altitude maximale du jour. */
+
+/* ---------- 5. CALCUL : SOLEIL ET COULEURS DU CIEL ---------- */
+/* Position du soleil au Mont Blanc : déclinaison + équation du temps + angle horaire.
+   Retourne l'altitude (°), l'altitude maximale du jour, et les heures de lever / coucher (h locales). */
 function sunPos(d){
   const y=d.getUTCFullYear(), mo=d.getUTCMonth();
   const doy=Math.floor((d-Date.UTC(y,0,0))/864e5);
   const h=d.getUTCHours()+d.getUTCMinutes()/60+d.getUTCSeconds()/3600;
   const B=2*Math.PI*(doy-81)/365;
-  const eot=9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B);   // minutes
-  const dec=23.45*RAD*Math.sin(B);
+  const eot=9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B);   // équation du temps (minutes)
+  const dec=23.45*RAD*Math.sin(B);                                  // déclinaison
   const tz=(mo>=3&&mo<=8)?2:1;                                      // heure d'été approx.
   const H=((h+LON/15-tz+eot/60)-12)*15*RAD;                         // angle horaire
   const phi=LAT*RAD;
   const alt=Math.asin(Math.sin(phi)*Math.sin(dec)+Math.cos(phi)*Math.cos(dec)*Math.cos(H))/RAD;
-  const H0=Math.acos(Math.max(-1,Math.min(1,-Math.tan(phi)*Math.tan(dec))));
-  const p=Math.abs(H)<H0?(H+H0)/(2*H0):null;
-  const noon=12-LON/15+tz-eot/60;                                   // midi solaire (h locales)
+  const noon=12-LON/15+tz-eot/60;                                   // midi solaire
   const c0=(Math.sin(-.833*RAD)-Math.sin(phi)*Math.sin(dec))/(Math.cos(phi)*Math.cos(dec));
-  const hd=Math.acos(Math.max(-1,Math.min(1,c0)))/RAD/15;
-  return {alt,p,max:90-Math.abs(LAT-dec/RAD),rise:noon-hd,set:noon+hd};
+  const hd=Math.acos(Math.max(-1,Math.min(1,c0)))/RAD/15;           // demi-durée du jour (h)
+  return {alt,max:90-Math.abs(LAT-dec/RAD),rise:noon-hd,set:noon+hd};
 }
 
-const hm=x=>{const m=Math.round(((x%24)+24)%24*60)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+// Outils de couleur : mélange, limitation, format CSS
+const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
+const cl=(v,a=0,b=1)=>Math.min(b,Math.max(a,v));
+const rgb=c=>`rgb(${c.map(Math.round)})`;
 
-/* ---------- Couleurs du ciel ---------- */
-const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t), cl=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)), rgb=c=>`rgb(${c.map(Math.round)})`;
-const ST=[[-18,[3,4,14],[0,0,6]],[-12,[8,12,40],[14,20,58]],[-6,[22,32,88],[70,56,110]],[0,[60,72,140],[255,138,60]],
-          [8,[86,140,215],[255,196,130]],[25,[58,140,232],[150,202,250]],[90,[40,120,230],[140,200,255]]];
+// Couleurs [haut, bas] du ciel pour une altitude du soleil (interpolées dans SKY)
 function skyCols(a){
-  a=cl(a,-18,90); let i=1; while(ST[i][0]<a)i++;
-  const p=ST[i-1],q=ST[i],t=(a-p[0])/(q[0]-p[0]);
+  a=cl(a,-18,90); let i=1; while(SKY[i][0]<a)i++;
+  const p=SKY[i-1], q=SKY[i], t=(a-p[0])/(q[0]-p[0]);
   return [mix(p[1],q[1],t),mix(p[2],q[2],t)];
 }
 
-/* ---------- Rendu ---------- */
-function render(dt){
-  const s=sunPos(new Date(virt));
-  let alt=s.alt, p=s.p;
-  if(S.sun_man){p=S.sun_pos/100;alt=p>0&&p<1?s.max*Math.sin(Math.PI*p):0}
+// Heure décimale → « HH:MM »
+const hm=x=>{const m=Math.round(((x%24)+24)%24*60)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
 
-  // Cadran de 24 h : 12h en haut, 15° par heure, sens horaire (lever à gauche, coucher à droite)
-  const tod=(((virt%864e5)+864e5)%864e5)/36e5, th=(tod-12)*15;
-  const aR=(s.rise-12)*15, aS=(s.set-12)*15, arcKey=aR.toFixed(2)+'|'+aS.toFixed(2);
-  if(arcKey!==lastArc){                            // arcs jour / nuit : ne bougent qu'au changement de date
-    lastArc=arcKey;
-    $('#dayArc').setAttribute('d',arcD(aR,aS)); $('#nightArc').setAttribute('d',arcD(aS,aR+360));
-    mark($('#mr'),aR); mark($('#ms'),aS);
-    $('#sr').textContent='🌅 '+hm(s.rise)+' · '+hm(s.set)+' 🌇';
-  }
+
+/* ---------- 6. RENDU ---------- */
+// Outils SVG : positions sur le cadran (a = ° depuis le haut, sens horaire) et création d'éléments
+const pt=(a,r=R)=>[CX+r*Math.sin(a*RAD), CY-r*Math.cos(a*RAD)];
+const attr=(e,o)=>{for(const k in o)if(o[k]!=null)e.setAttribute(k,o[k]);return e};
+const svg=(tag,o,parent)=>parent.appendChild(attr(document.createElementNS(SVGNS,tag),o));
+const arcD=(a0,a1)=>{const [x0,y0]=pt(a0),[x1,y1]=pt(a1);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${R} ${R} 0 ${a1-a0>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`};
+const mark=(el,a)=>{const [x0,y0]=pt(a,R-9),[x1,y1]=pt(a,R+9);attr(el,{x1:x0,y1:y0,x2:x1,y2:y1})};   // trait de lever / coucher
+
+// Repères fixes du cadran (12h en haut, 0h en bas) ; les heures 0, 6, 12, 18 reçoivent la classe .k
+for(let h=0;h<24;h++){
+  const key=h%6===0;
+  const [x,y]=pt((h-12)*DEG_PER_H,132);
+  svg('text',{x:x.toFixed(1),y:y.toFixed(1),class:key?'k':null},$('hours')).textContent=h+'h';
+  const [x0,y0]=pt(h*DEG_PER_H,key?88:92), [x1,y1]=pt(h*DEG_PER_H,98.5);
+  svg('line',{x1:x0.toFixed(1),y1:y0.toFixed(1),x2:x1.toFixed(1),y2:y1.toFixed(1),class:key?'k':null},$('ticks'));
+}
+for(let k=0;k<96;k++){                    // points toutes les 15 min (3,75° chacun)
+  const [x,y]=pt(k*3.75-180,116);
+  svg('circle',{cx:x.toFixed(1),cy:y.toFixed(1),r:k%4?1.4:2.2},$('dots'));
+}
+
+// Appelée à chaque image : dt = secondes écoulées depuis l'image précédente
+function render(dt){
+  const date=new Date(virt), iso=date.toISOString(), s=sunPos(date);
+  const p=S.sun_pos/100;                                            // course du soleil en mode manuel (0 = lever, 1 = coucher)
+  const alt=S.sun_man?(p>0&&p<1?s.max*Math.sin(Math.PI*p):0):s.alt;
+  const tod=(((virt%864e5)+864e5)%864e5)/36e5;                      // heure du jour (0–24)
   const isDay=S.sun_man||(tod>=s.rise&&tod<=s.set);
-  const sa=S.sun_man?aR+p*(aS-aR):th;              // soleil manuel : sur sa course ; sinon il suit l'heure
-  const [sx,sy]=pt(sa);
-  $('#sun').setAttribute('transform',`translate(${sx.toFixed(2)} ${sy.toFixed(2)})`);
-  $('#sunfill').style.opacity=isDay?S.b_sun/100:0;  // jour : soleil plein
-  $('#ghost').style.opacity=isDay?0:.9;             // nuit : soleil fantôme (pas de lune dans la maquette)
-  const rot=`rotate(${th} 150 150)`;               // la roue tourne avec l'heure : trait rouge (= le soleil) et traits d'heure ensemble
-  $('#hand').setAttribute('transform',rot); $('#ticks').setAttribute('transform',rot);
-  $('#hand').style.opacity=S.sun_man?1:'';         // soleil manuel : le trait rouge reste affiché comme repère de l'heure
+  drawDial(s,tod,isDay,p,alt);
+  drawClock(date,iso);
+  drawSky(alt,dt);
+  if(![dateIn,timeIn].includes(document.activeElement)){            // champs date/heure (sans écraser la saisie en cours)
+    dateIn.value=iso.slice(0,10); timeIn.value=iso.slice(11,19);
+  }
+}
+
+// Cadran : arcs jour/nuit, soleil, trait rouge, lecture altitude / course
+function drawDial(s,tod,isDay,p,alt){
+  const th=(tod-12)*DEG_PER_H;                                      // angle de l'heure actuelle
+  const aR=(s.rise-12)*DEG_PER_H, aS=(s.set-12)*DEG_PER_H, arcKey=aR.toFixed(2)+'|'+aS.toFixed(2);
+  if(arcKey!==lastArc){                                             // arcs : ne bougent qu'au changement de date
+    lastArc=arcKey;
+    $('dayArc').setAttribute('d',arcD(aR,aS)); $('nightArc').setAttribute('d',arcD(aS,aR+360));
+    mark($('mr'),aR); mark($('ms'),aS);
+    $('sr').textContent='🌅 '+hm(s.rise)+' · '+hm(s.set)+' 🌇';
+  }
+  const [sx,sy]=pt(S.sun_man?aR+p*(aS-aR):th);                      // soleil manuel : sur sa course ; sinon il suit l'heure
+  $('sun').setAttribute('transform',`translate(${sx.toFixed(2)} ${sy.toFixed(2)})`);
+  $('sunfill').style.opacity=isDay?S.b_sun/100:0;                   // jour : soleil plein
+  $('ghost').style.opacity=isDay?0:.9;                              // nuit : soleil fantôme (pas de lune dans la maquette)
+  const rot=`rotate(${th} ${CX} ${CY})`;                            // la roue tourne avec l'heure : trait rouge + traits d'heure
+  $('hand').setAttribute('transform',rot); $('ticks').setAttribute('transform',rot);
+  $('hand').style.opacity=S.sun_man?1:'';                           // soleil manuel : le trait rouge reste affiché
   let lab,val;
   if(isDay){lab='Course du soleil';val=S.sun_man?p:(tod-s.rise)/(s.set-s.rise)}
   else{lab='Nuit';val=(tod>s.set?tod-s.set:tod+24-s.set)/(24-s.set+s.rise)}
-  $('#pl').textContent=lab; $('#pct').textContent=(cl(val)*100).toFixed(1)+' %';
-  $('#alt').textContent=alt.toFixed(1)+'°';
+  $('pl').textContent=lab; $('pct').textContent=(cl(val)*100).toFixed(1)+' %';
+  $('alt').textContent=alt.toFixed(1)+'°';
+}
 
-  // Heure et date au centre (toujours affichées, y compris pendant le geste)
-  const iso=new Date(virt).toISOString(), hmT=iso.slice(11,16), scT=':'+iso.slice(17,19), dT=iso.slice(0,10);
-  if(hmT!==lastHM){lastHM=hmT;$('#tHM').textContent=hmT}
-  if(scT!==lastSC){lastSC=scT;$('#tSC').textContent=scT}
-  if(dT!==lastD){lastD=dT;$('#dte').textContent=new Date(virt).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}
+// Heure (HH:MM + secondes) et date au centre du cadran, toujours affichées (même pendant le geste)
+function drawClock(date,iso){
+  const hmT=iso.slice(11,16), scT=':'+iso.slice(17,19), dT=iso.slice(0,10);
+  if(hmT!==lastHM){lastHM=hmT;$('tHM').textContent=hmT}
+  if(scT!==lastSC){lastSC=scT;$('tSC').textContent=scT}
+  if(dT!==lastD){lastD=dT;$('dte').textContent=date.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}
+}
 
-  // Arrière-plan : soleil + météo
+// Arrière-plan : couleurs du ciel (soleil + météo), étoiles, nuages, éclairs
+function drawSky(alt,dt){
   let [t,b]=skyCols(alt);
   if(!S.auto){t=[S.sr,S.sg,S.sb];b=mix(t,[255,255,255],.3)}
-  const c=S.clouds/100, st=S.storm/100, lt=cl((alt+8)/25,.12,1);
+  const c=S.clouds/100, st=S.storm/100, lt=cl((alt+8)/25,.12,1);    // c = nuages, st = orage, lt = clarté du jour
   const gr=mix([58,60,68],[176,181,188],lt), dk=k=>k.map(v=>v*(.4+lt*.6));
   t=mix(mix(t,gr,c*.75),dk([28,31,40]),st*.7);
   b=mix(mix(b,gr,c*.85),dk([45,48,58]),st*.6);
   document.body.style.setProperty('--top',rgb(t));
   document.body.style.setProperty('--bot',rgb(b));
 
-  // Étoiles, nuages, éclairs
-  $('#stars').style.opacity=cl((-3-alt)/9)*S.b_stars/100*(1-c*.9);
-  const cc=$('#clouds'); cc.style.opacity=c*S.b_cloud/100;
+  $('stars').style.opacity=cl((-3-alt)/9)*S.b_stars/100*(1-c*.9);
+  const cc=$('clouds'); cc.style.opacity=c*S.b_cloud/100;
   cc.style.setProperty('--cloud',rgb(mix(mix([120,124,134],[255,255,255],lt),[62,66,76],st)));
-  if(st>0&&S.b_light>0&&Math.random()<st*dt*.35){
-    const f=$('#flash'); f.style.setProperty('--fl',S.b_light/100*.85);
+  if(st>0&&S.b_light>0&&Math.random()<st*dt*.35){                   // éclair aléatoire, plus fréquent avec l'orage
+    const f=$('flash'); f.style.setProperty('--fl',S.b_light/100*.85);
     f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
   }
-
-  // Champs date / heure (sans écraser la saisie en cours)
-  if(![$('#d'),$('#t')].includes(document.activeElement)){
-    $('#d').value=iso.slice(0,10); $('#t').value=iso.slice(11,19);
-  }
 }
 
-/* ---------- Réglage de l'heure : on tourne le cadran ----------
+
+/* ---------- 7. CADRAN TACTILE + RETOUR HAPTIQUE ----------
    On ne lit que la rotation du doigt autour du centre : un simple clic ne fait rien
    et le soleil ne saute jamais sous le doigt. Un tour complet = 24 h ; passer minuit change la date. */
-const arc=$('#arc'), ctl=$('#ctl'), s1=$('#s1');
-const SVGNS='http://www.w3.org/2000/svg', DEG_PER_H=15;       // 15° de cadran = 1 h
-const CX=150, CY=150, R=104;                                  // centre et rayon de l'arc jour/nuit
-let lastArc=null, lastHM=null, lastSC=null, lastD=null;
-let dragA=null;                                   // dernier angle du doigt (° depuis le haut, sens horaire) ou null
-const pt=(a,r=R)=>[CX+r*Math.sin(a*RAD), CY-r*Math.cos(a*RAD)];   // a : ° depuis le haut (midi), sens horaire
-const arcD=(a0,a1)=>{const [x0,y0]=pt(a0),[x1,y1]=pt(a1);
-  return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${R} ${R} 0 ${a1-a0>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`};
-const mark=(el,a)=>{const [x0,y0]=pt(a,R-9),[x1,y1]=pt(a,R+9);       // petit trait de lever / coucher
-  el.setAttribute('x1',x0);el.setAttribute('y1',y0);el.setAttribute('x2',x1);el.setAttribute('y2',y1)};
-for(let h=0;h<24;h++){                            // 24 heures, comme une horloge (12h en haut, 0h en bas)
-  const [x,y]=pt((h-12)*15,132), tx=document.createElementNS(SVGNS,'text');
-  tx.setAttribute('x',x.toFixed(1)); tx.setAttribute('y',y.toFixed(1)); tx.textContent=h+'h';
-  if(h%6===0)tx.setAttribute('class','k');        // 0h, 6h, 12h, 18h restent visibles au repos
-  $('#hours').appendChild(tx);
-  const [x0,y0]=pt(h*15,h%6?92:88), [x1,y1]=pt(h*15,98.5), tk=document.createElementNS(SVGNS,'line');
-  tk.setAttribute('x1',x0.toFixed(1)); tk.setAttribute('y1',y0.toFixed(1)); tk.setAttribute('x2',x1.toFixed(1)); tk.setAttribute('y2',y1.toFixed(1));
-  if(h%6===0)tk.setAttribute('class','k');        // traits plus longs toutes les 6 h à partir du trait rouge
-  $('#ticks').appendChild(tk);
-}
-for(let k=0;k<96;k++){                            // points fixes toutes les 15 min (3,75° chacun)
-  const [x,y]=pt(k*3.75-180,116), c=document.createElementNS(SVGNS,'circle');
-  c.setAttribute('cx',x.toFixed(1)); c.setAttribute('cy',y.toFixed(1)); c.setAttribute('r',k%4?1.4:2.2);
-  $('#dots').appendChild(c);
-}
 const fingerAngle=e=>{
   const q=new DOMPoint(e.clientX,e.clientY).matrixTransform(arc.getScreenCTM().inverse());
   return Math.atan2(q.x-CX,CY-q.y)/RAD;
 };
-/* ---------- Retour haptique sur le cadran ----------
-   Petit clic à chaque quart d'heure franchi, clic plus fort à chaque heure pile.
-   Android (Chrome, Firefox…) : navigator.vibrate. iPhone : Safari n'a pas vibrate() ;
-   on tente le retour haptique d'un interrupteur natif (<input switch>, iOS 17.4+). */
-const HAPTIC={quarter:10,hour:35}, QUARTER=9e5;   // durées en ms
-let swEl=null, lastQ=0, lastBuzz=0;
+
+/* Petit clic à chaque quart d'heure franchi, clic plus fort à chaque heure pile.
+   Android : navigator.vibrate. iPhone (Safari sans vibrate()) : retour haptique d'un
+   interrupteur natif caché (<input switch>, iOS 17.4+). */
 function buzz(strong){
   const now=performance.now();
-  if(!strong&&now-lastBuzz<45)return;             // pas de bourdonnement quand on tourne vite
+  if(!strong&&now-lastBuzz<45)return;                               // pas de bourdonnement quand on tourne vite
   lastBuzz=now;
   if(navigator.vibrate){navigator.vibrate(strong?HAPTIC.hour:HAPTIC.quarter);return}
   if(!swEl){
@@ -286,43 +343,45 @@ function buzz(strong){
     swEl.innerHTML='<input type="checkbox" switch tabindex="-1">';
     document.body.appendChild(swEl);
   }
-  swEl.click(); if(strong)setTimeout(()=>swEl.click(),45);   // heure = double impulsion
+  swEl.click(); if(strong)setTimeout(()=>swEl.click(),45);          // heure = double impulsion
 }
-function turn(deg){                               // la date suit : passer minuit change de jour
+function turn(deg){                                                 // fait avancer l'heure (la date suit)
   virt+=deg/DEG_PER_H*36e5;
   const q=Math.floor(virt/QUARTER);
   if(q!==lastQ){const h=Math.floor(q/4)!==Math.floor(lastQ/4);lastQ=q;buzz(h)}
 }
-ctl.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});  // pas de scroll pendant le geste
+
+ctl.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});   // pas de scroll pendant le geste
 ctl.addEventListener('pointerdown',e=>{ctl.setPointerCapture(e.pointerId);s1.classList.add('touch');dragA=fingerAngle(e);lastQ=Math.floor(virt/QUARTER)});
 ctl.addEventListener('pointermove',e=>{
   if(dragA===null)return;
-  const a=fingerAngle(e); turn(((a-dragA+540)%360+360)%360-180); dragA=a;
+  const a=fingerAngle(e); turn(((a-dragA+540)%360+360)%360-180); dragA=a;   // écart d'angle ramené entre -180° et 180°
 });
 const endDrag=()=>{dragA=null;s1.classList.remove('touch')};
 ctl.addEventListener('pointerup',endDrag);
 ctl.addEventListener('pointercancel',endDrag);
 
-/* Toucher le centre : ouvre / ferme les champs date et heure (saisie précise) */
-const ctr=$('#center');
-const setEdit=o=>{s1.classList.toggle('edit',o);ctr.setAttribute('aria-expanded',o);$('#hint').textContent=o?'▴ fermer':'✎ modifier'};
+
+/* ---------- 8. SAISIE DATE/HEURE + BOUCLE PRINCIPALE ---------- */
+// Toucher le centre ouvre / ferme les champs date et heure
+const setEdit=o=>{s1.classList.toggle('edit',o);ctr.setAttribute('aria-expanded',o);$('hint').textContent=o?'▴ fermer':'✎ modifier'};
 const closeEdit=()=>{
   if(!s1.classList.contains('edit'))return;
-  if(dirty)applyDT();                             // saisie en cours : on l'applique avant de fermer
-  const a=document.activeElement; if(a&&a.closest('.two'))a.blur();
+  if(dirty)applyDT();                                               // saisie en cours : on l'applique avant de fermer
+  blurFields();
   setEdit(false);
 };
 const toggleEdit=()=>s1.classList.contains('edit')?closeEdit():setEdit(true);
-/* Les champs se referment dès qu'on touche autre chose que le centre ou les champs eux-mêmes */
-document.addEventListener('pointerdown',e=>{if(!e.target.closest('.two,#center'))closeEdit()},true);
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('.two,#center'))closeEdit()},true);   // toucher ailleurs ferme les champs
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEdit()});
 ctr.addEventListener('click',toggleEdit);
 ctr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleEdit()}});
 
+// Boucle d'animation : le temps avance selon la vitesse choisie, et reste figé pendant le geste
 let last=performance.now();
 (function loop(now){
   const dt=Math.min((now-last)/1000,.2); last=now;
-  if(dragA===null)virt+=dt*1000*speed;            // le temps est figé pendant le geste
+  if(dragA===null)virt+=dt*1000*speed;
   render(dt);
   requestAnimationFrame(loop);
 })(last);

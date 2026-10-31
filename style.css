@@ -1,111 +1,158 @@
+/* =====================================================================
+   MAQUETTE MONT BLANC – FEUILLE DE STYLE
+   1. Base            4. Cadran solaire (SVG)
+   2. Ambiance        5. Contrôles (champs, curseurs, boutons)
+   3. Mise en page    6. Tablette / PC
+   ===================================================================== */
+
+/* ---------- 1. BASE ---------- */
 *{box-sizing:border-box;margin:0}
-:root{--top:#3c8cf0;--bot:#a5d2ff;--card:rgba(12,22,45,.55);--line:rgba(255,255,255,.18);--acc:#ffb84d;color-scheme:dark}
-/* Téléphone en mode sombre : le ciel est dessiné par la page, on refuse l'assombrissement automatique du navigateur
-   (sinon le bleu ciel devient bleu nuit et les étoiles blanches foncent). */
+:root{
+ --top:#3c8cf0;                /* ciel haut  (réécrit par le JS) */
+ --bot:#a5d2ff;                /* ciel bas   (réécrit par le JS) */
+ --card:rgba(12,22,45,.55);    /* fond des cartes */
+ --line:rgba(255,255,255,.18); /* bordures */
+ --acc:#ffb84d;                /* couleur d'accent */
+ color-scheme:dark;
+}
+/* Téléphone en mode sombre : le ciel est dessiné par la page, on refuse l'assombrissement
+   automatique du navigateur (sinon le bleu ciel devient bleu nuit et les étoiles foncent). */
 @media(prefers-color-scheme:dark){
  :root{color-scheme:only light}
- input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-calendar-picker-indicator{filter:invert(1)}
+ input[type=date]::-webkit-calendar-picker-indicator,
+ input[type=time]::-webkit-calendar-picker-indicator{filter:invert(1)}
 }
 body{font:16px/1.4 system-ui,-apple-system,sans-serif;color:#fff;min-height:100vh;background:linear-gradient(var(--top),var(--bot)) fixed}
 
-/* Calques d'ambiance (étoiles, nuages, éclairs) */
+
+/* ---------- 2. AMBIANCE (calques plein écran : étoiles, nuages, éclairs) ---------- */
 .fx{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+
+/* Étoiles : opacité pilotée par le JS */
 #stars{opacity:0;background-size:220px 200px;background-image:
-radial-gradient(1.5px 1.5px at 20px 30px,#fff,transparent),radial-gradient(1px 1px at 90px 80px,#fff,transparent),
-radial-gradient(1.5px 1.5px at 160px 40px,#fff,transparent),radial-gradient(1px 1px at 50px 140px,#fff,transparent),
-radial-gradient(1px 1px at 130px 170px,#fff,transparent),radial-gradient(1.5px 1.5px at 200px 110px,#fff,transparent)}
+ radial-gradient(1.5px 1.5px at 20px 30px,#fff,transparent),radial-gradient(1px 1px at 90px 80px,#fff,transparent),
+ radial-gradient(1.5px 1.5px at 160px 40px,#fff,transparent),radial-gradient(1px 1px at 50px 140px,#fff,transparent),
+ radial-gradient(1px 1px at 130px 170px,#fff,transparent),radial-gradient(1.5px 1.5px at 200px 110px,#fff,transparent)}
+
+/* Nuages : 3 ovales floues qui dérivent ; --cloud (couleur) et l'opacité sont pilotées par le JS */
 #clouds{opacity:0}
 #clouds i{position:absolute;left:0;width:60vw;max-width:520px;height:90px;border-radius:50%;background:var(--cloud,#fff);filter:blur(24px);animation:drift 70s linear infinite}
 #clouds i:nth-child(1){top:6%}
-#clouds i:nth-child(2){top:22%;animation-duration:95s;animation-delay:-40s;height:120px}
+#clouds i:nth-child(2){top:22%;height:120px;animation-duration:95s;animation-delay:-40s}
 #clouds i:nth-child(3){top:40%;animation-duration:120s;animation-delay:-80s}
 @keyframes drift{from{transform:translateX(-70vw)}to{transform:translateX(110vw)}}
+
+/* Éclair : le JS ajoute la classe .go (intensité max = --fl) */
 #flash{background:#fff;opacity:0}
 #flash.go{animation:fl .4s}
 @keyframes fl{0%,30%{opacity:var(--fl,.8)}15%{opacity:.05}100%{opacity:0}}
 
-/* Mise en page mobile */
+
+/* ---------- 3. MISE EN PAGE (mobile d'abord) ---------- */
 main{position:relative;max-width:520px;margin:auto;padding:16px 14px 40px;display:grid;gap:14px}
 h1{font-size:1.3rem;font-weight:700}
 h1 small{display:block;font-size:.8rem;font-weight:400;opacity:.7}
+footer{text-align:center;font-size:.75rem;opacity:.55}
+
+/* Cartes en verre dépoli (section 1 + panneaux de réglages) */
 .card,details{background:var(--card);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:18px;padding:14px}
 #s2{display:grid;gap:14px}
 summary{font-weight:600;cursor:pointer;list-style:none}
 summary::after{content:"▾";float:right;opacity:.6}
 details[open] summary::after{content:"▴"}
+h3{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin:14px 0 2px}
 
-/* Cadran solaire 24 h : midi en haut, minuit en bas, un tour = un jour */
+
+/* ---------- 4. CADRAN SOLAIRE 24 h ----------
+   Midi en haut, minuit en bas, un tour = un jour. Le JS ajoute la classe .touch sur #s1
+   pendant le geste : repères visibles seulement à ce moment-là. */
 #arc{display:block;width:100%;max-width:360px;margin:0 auto;overflow:visible}
+
+/* Arcs jour / nuit et traits de lever / coucher */
 .day,.night{fill:none;stroke-width:5;stroke-linecap:round}
 .day{stroke:#ffd24d}
 .night{stroke:rgba(150,162,255,.5)}
 .mk{stroke:#fff;stroke-width:2;stroke-linecap:round;opacity:.85}
-.rt{stroke:#ff3b30;stroke-width:3.5;stroke-linecap:round;pointer-events:none;opacity:0;transition:opacity .2s}
-/* Traits d'heure : n'apparaissent qu'au toucher de la roue, et tournent avec elle (comme le trait rouge) */
-.tk{opacity:0;transition:opacity .2s;pointer-events:none}
+
+/* Éléments qui n'apparaissent qu'au toucher : trait rouge (.rt), traits d'heure (.tk), points de 15 min (.dots).
+   Le trait rouge et les traits d'heure tournent avec la roue (transform posé par le JS). */
+.tk,.dots,.rt{opacity:0;transition:opacity .2s;pointer-events:none}
+#s1.touch .tk,#s1.touch .dots,#s1.touch .rt{opacity:1}
+.rt{stroke:#ff3b30;stroke-width:3.5;stroke-linecap:round}
 .tk line{stroke:#fff;stroke-width:1.5;stroke-linecap:round;opacity:.8}
-.tk line.k{stroke-width:2.4;opacity:1}
-#s1.touch .tk,#s1.touch .rt{opacity:1}
+.tk line.k{stroke-width:2.4;opacity:1}          /* .k = 0h, 6h, 12h, 18h */
+.dots circle{fill:#fff;opacity:.75}
+
+/* Numéros d'heure : 0h/6h/12h/18h (.k) visibles au repos, tous les autres au toucher */
+.hrs{pointer-events:none}
+.hrs text{fill:#fff;font-size:10px;text-anchor:middle;dominant-baseline:middle;font-variant-numeric:tabular-nums;opacity:0;transition:opacity .2s}
+.hrs text.k{opacity:.65}
+#s1.touch .hrs text{opacity:.95}
+
+/* Soleil : disque + halo le jour, soleil « fantôme » en pointillés la nuit */
 #sun{pointer-events:none}
 #sunfill,#ghost{transition:opacity .3s}
 #sun .disc{fill:#ffd24d}
 #sun .halo{fill:rgba(255,210,77,.3)}
 .ghost{fill:none;stroke:#ffd24d;stroke-width:1.5;stroke-dasharray:3 2.5;opacity:0}
 
-/* Réglage de l'heure au toucher : le soleil suit la rotation du doigt, les repères apparaissent */
+/* Zone tactile : anneau invisible épais autour de l'arc (on tourne le doigt autour du centre) */
 #ctl{touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none}
 #s1.touch #ctl{cursor:grabbing}
 .hit{fill:none;stroke:transparent;stroke-width:64;pointer-events:stroke}
-.dial{opacity:0;transition:opacity .2s;pointer-events:none}
-#s1.touch .dial{opacity:1}
-.dots circle{fill:#fff;opacity:.75}
-.hrs{pointer-events:none}
-.hrs text{fill:#fff;font-size:10px;text-anchor:middle;dominant-baseline:middle;font-variant-numeric:tabular-nums;opacity:0;transition:opacity .2s}
-.hrs text.k{opacity:.65}
-#s1.touch .hrs text{opacity:.95}
 
-/* Centre : heure et date toujours visibles ; un toucher ouvre les champs de saisie */
+/* Centre du cadran : heure, date, lever/coucher ; un toucher ouvre les champs de saisie */
 #center{cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 #center:focus{outline:none}
 #center:focus-visible circle{stroke:#fff;stroke-width:1.5}
 #center circle{fill:transparent}
 #center text{fill:#fff;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
 #clk{font-size:34px;font-weight:600;font-variant-numeric:tabular-nums}
-#tSC{font-size:16px;font-weight:400;opacity:.65}
+#tSC{font-size:16px;font-weight:400;opacity:.65}   /* secondes */
 #dte{font-size:13px;opacity:.9}
 #sr{font-size:11px;opacity:.8}
 #hint{font-size:10px;opacity:.5}
+
+/* Ligne « Altitude · Course du soleil » sous le cadran */
 .read{text-align:center;font-size:.9rem;opacity:.9;margin-bottom:10px}
 .read b{color:var(--acc);font-size:1.05rem}
 
-/* Contrôles */
-.two{display:none;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-#s1.edit .two{display:grid}
+
+/* ---------- 5. CONTRÔLES ---------- */
 label{font-size:.85rem}
-.two label{display:grid;gap:4px}
-input[type=date],input[type=time]{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.1);color:#fff;font:inherit}
 input[type=range]{width:100%;accent-color:var(--acc)}
 input[type=checkbox]{width:22px;height:22px;accent-color:var(--acc)}
+input[type=date],input[type=time]{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.1);color:#fff;font:inherit}
+
+/* Champs date / heure : cachés, affichés quand #s1 a la classe .edit */
+.two{display:none;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+#s1.edit .two{display:grid}
+.two label{display:grid;gap:4px}
 .now{grid-column:1/-1;width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.1);color:#fff;font:inherit;font-size:.9rem;cursor:pointer}
 .now:active{background:var(--acc);color:#1a1a1a;border-color:var(--acc)}
+
+/* Vitesse du temps */
 .speed{margin-bottom:12px}
 .speed .head{display:flex;justify-content:space-between;margin-bottom:4px}
 .speed output{color:var(--acc);font-weight:600}
+
+/* Boutons météo */
 .chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .chips button{padding:10px 4px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.1);color:#fff;font:inherit;font-size:.9rem;cursor:pointer}
 .chips button.on{background:var(--acc);color:#1a1a1a;border-color:var(--acc);font-weight:600}
+
+/* Lignes de réglage : nom | curseur | valeur   (.tg = interrupteur : nom | case) */
 .row{display:grid;grid-template-columns:1fr 1.6fr 4.6em;gap:8px;align-items:center;margin:10px 0;font-size:.9rem}
 .row.tg{grid-template-columns:1fr auto}
 .row output{text-align:right;font-variant-numeric:tabular-nums;opacity:.8;font-size:.82rem}
-h3{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin:14px 0 2px}
-footer{text-align:center;font-size:.75rem;opacity:.55}
 
-/* Tablette */
+
+/* ---------- 6. TABLETTE / PC ---------- */
 @media(min-width:700px){
  main{max-width:860px;padding:24px}
  h1{font-size:1.6rem}
 }
-/* PC : section 1 fixe à gauche, réglages à droite */
+/* PC : cadran fixe à gauche, réglages en 2 colonnes à droite */
 @media(min-width:1000px){
  main{max-width:1240px;grid-template-columns:440px 1fr;align-items:start;gap:20px}
  h1,footer{grid-column:1/-1}

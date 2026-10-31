@@ -130,7 +130,7 @@ const RAD=Math.PI/180;
 const DEG_PER_H=15;                       // 15° de cadran = 1 h
 const CX=150, CY=150, R=104;              // centre et rayon de l'arc jour/nuit (viewBox du SVG)
 const QUARTER=9e5;                        // 15 min en ms
-const HAPTIC={quarter:10,hour:35};        // durée des vibrations (ms)
+const HAPTIC={pulse:10,minGap:100};       // durée d'un clic et délai minimal entre deux clics (ms)
 const SVGNS='http://www.w3.org/2000/svg';
 
 // Vitesses du curseur « Vitesse du temps » : [secondes simulées par seconde réelle, libellé]
@@ -328,14 +328,16 @@ const fingerAngle=e=>{
   return Math.atan2(q.x-CX,CY-q.y)/RAD;
 };
 
-/* Petit clic à chaque quart d'heure franchi, clic plus fort à chaque heure pile.
+/* Petit clic à chaque quart d'heure franchi (tous les clics sont identiques).
+   Un clic est ignoré s'il tombe moins de HAPTIC.minGap ms après le précédent : évite la
+   « bouillie » sur les vibreurs lents quand on tourne vite.
    Android : navigator.vibrate. iPhone (Safari sans vibrate()) : retour haptique d'un
    interrupteur natif caché (<input switch>, iOS 17.4+). */
-function buzz(strong){
+function buzz(){
   const now=performance.now();
-  if(!strong&&now-lastBuzz<45)return;                               // pas de bourdonnement quand on tourne vite
+  if(now-lastBuzz<HAPTIC.minGap)return;
   lastBuzz=now;
-  if(navigator.vibrate){navigator.vibrate(strong?HAPTIC.hour:HAPTIC.quarter);return}
+  if(navigator.vibrate){navigator.vibrate(HAPTIC.pulse);return}
   if(!swEl){
     swEl=document.createElement('label');
     swEl.setAttribute('aria-hidden','true');
@@ -343,12 +345,12 @@ function buzz(strong){
     swEl.innerHTML='<input type="checkbox" switch tabindex="-1">';
     document.body.appendChild(swEl);
   }
-  swEl.click(); if(strong)setTimeout(()=>swEl.click(),45);          // heure = double impulsion
+  swEl.click();
 }
 function turn(deg){                                                 // fait avancer l'heure (la date suit)
   virt+=deg/DEG_PER_H*36e5;
   const q=Math.floor(virt/QUARTER);
-  if(q!==lastQ){const h=Math.floor(q/4)!==Math.floor(lastQ/4);lastQ=q;buzz(h)}
+  if(q!==lastQ){lastQ=q;buzz()}                                     // un quart d'heure franchi = un clic
 }
 
 ctl.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});   // pas de scroll pendant le geste
